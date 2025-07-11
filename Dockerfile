@@ -1,10 +1,20 @@
-FROM node:lts-alpine
-ENV NODE_ENV=production
+# Use specific Node.js version
+FROM node:14.21.3-slim
+
+# Set working directory inside the container
 WORKDIR /usr/src/app
-COPY ["package.json", "package-lock.json*", "npm-shrinkwrap.json*", "./"]
-RUN npm install --production --silent && mv node_modules ../
+
+# Copy package.json and package-lock.json first to leverage Docker's cache
+COPY package*.json ./
+
+# Install ALL dependencies (including devDependencies)
+RUN npm ci
+
+# Copy the rest of your application's source code
 COPY . .
+
+# Expose the port your Node.js application listens on
 EXPOSE 3001
-RUN chown -R node /usr/src/app
-USER node
-CMD ["node", "./server.js"]
+
+# Start the app
+CMD ["npm", "start"]

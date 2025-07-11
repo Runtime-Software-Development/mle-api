@@ -13,6 +13,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # *** THESE ARE THE KEY CHANGES FOR LIVE RELOADING ***
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
 
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.2
@@ -33,17 +37,15 @@ services:
 
   postgres:
     image: postgres:16-alpine 
-    environment:
-      POSTGRES_DB: mlp_db
-      POSTGRES_USER: mlp_user 
-      POSTGRES_PASSWORD: mlp_password
+    env_file:
+      - .env
     volumes:
       - ./db_init:/docker-entrypoint-initdb.d/
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mlp_user -d mlp_db"]
+      test: ["CMD-SHELL", "pg_isready -U boutrous -d mle_db"]
       interval: 5s
       timeout: 5s
       retries: 5

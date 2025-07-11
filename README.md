@@ -141,7 +141,7 @@ Once the services are up:
 
   * **Image**: `postgres:16-alpine` (lightweight PostgreSQL image)
   * **Ports**: `5432:5432` (PostgreSQL standard port)
-  * **Database Name**: `mlp_db`
+  * **Database Name**: `mle_db`
   * **User**: `mlp_user`
   * **Password**: `mlp_password`
   * **Data Persistence**: Uses a named volume `postgres_data` to ensure your database data persists even if the container is removed.

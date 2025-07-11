@@ -17,17 +17,19 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
 
+console.log('MLE API Environment Variables: %s', JSON.stringify(process.env, null, 2));
+
 /**
  * Create client pool to allow for reusable pool of
  * clients to check out, use, and return.
  */
 
 const pool = new pg.Pool({
-    user: process.env.MLE_DB_USER,
-    database: process.env.MLE_DB_NAME,
-    password: process.env.MLE_DB_PASS,
-    host: process.env.MLE_DB_HOST,
-    port: process.env.MLE_DB_PORT,
+    user: process.env.POSTGRES_USER,
+    database: process.env.POSTGRES_DB,
+    password: process.env.POSTGRES_PASSWORD,
+    host: process.env.POSTGRES_HOST,
+    port: process.env.POSTGRES_PORT,
     max: 20, // max number of clients in the pool
     connectionTimeoutMillis: 1000,
     idleTimeoutMillis: 10000
@@ -41,10 +43,10 @@ const pool = new pg.Pool({
 
 pool.on('error', (error, client) => {
   console.error('Unexpected error on idle database client:', {
-    user: client?.user || process.env.MLE_DB_USER,
-    database: client?.database || process.env.MLE_DB_NAME,
-    host: client?.host || process.env.MLE_DB_HOST,
-    port: client?.port || process.env.MLE_DB_PORT,
+    user: client?.user || process.env.POSTGRES_USER,
+    database: client?.database || process.env.POSTGRES_DB,
+    host: client?.host || process.env.POSTGRES_HOST,
+    port: client?.port || process.env.POSTGRES_PORT,
     error: error.message, // Include the error message
     // stack: error.stack // Include the stack trace for debugging
   });
