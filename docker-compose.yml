@@ -1,7 +1,6 @@
 services:
-  backend-api:
-    image: mle-node-api
-    container_name: mle-api
+  mlpapi:
+    image: mlp-api
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -9,36 +8,46 @@ services:
       - .env
     ports:
       - 3001:3001
-    volumes:
-      - ../mle-data/:/mnt/mle-files
+      - 9229:9229
+    command: ["npm", "--inspect=0.0.0.0:9229", "start"]
     depends_on:
-      - backend-db
-      - backend-queue
-    networks:
-       - app-network
-  backend-db:
-    image: postgres:17.4
-    container_name: mle-db
-    restart: always
+      postgres:
+        condition: service_healthy
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.2
+    command: start-dev --http-port=8081 --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: dev-mem 
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/realms/master"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
     volumes:
-      - ../mle-db/init:/docker-entrypoint-initdb.d
-      - ../mle-db/pgdata:/var/lib/postgresql/data
+      - ./kiln-test-realm.json:/opt/keycloak/data/import/kiln-test-realm.json
+
+  postgres:
+    image: postgres:16-alpine 
+    environment:
+      POSTGRES_DB: mlp_db
+      POSTGRES_USER: mlp_user 
+      POSTGRES_PASSWORD: mlp_password
+    volumes:
+      - ./db_init:/docker-entrypoint-initdb.d/
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - 5432:5432
-    env_file:
-      - .env
-    # healthcheck:
-    #   test: ["CMD", "pg_isready", "-U", "boutrous"]
-    #   interval: 1s
-    #   timeout: 5s
-    #   retries: 10
-    networks:
-       - app-network
-  backend-queue:
-    image: redis:latest
-    container_name: mle-queue
-    ports:
-      - 6379:6379
-networks:
-  app-network:
-    driver: bridge
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlp_user -d mlp_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

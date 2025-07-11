@@ -10,10 +10,10 @@
     "url": "https://goruntime.ca"
   },
   "license": "MIT",
-  "repository": "github:scrose/mle-api/",
-  "bugs": "https://github.com/scrose/mle-api/issues",
+  "repository": "https://github.com/Runtime-Software-Development/mle-api",
+  "bugs": "https://github.com/Runtime-Software-Development/mle-api/issues",
   "scripts": {
-    "start-api": "nodemon ./server.js",
+    "start": "nodemon ./server.js",
     "start-trace-api": "nodemon --trace-warnings --inspect --trace_gc ./server.js",
     "start-debug-api": "nodemon --trace-warnings --inspect ./server.js",
     "start-queue": "nodemon ./queue/worker.js",
