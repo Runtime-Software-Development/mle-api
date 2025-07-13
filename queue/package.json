@@ -1,0 +1,51 @@
+{
+  "name": "mle-queue",
+  "version": "1.0.0",
+  "description": "Mountain Legacy Project: File processing queue API.",
+  "main": "server.js",
+  "type": "module",
+  "private": true,
+  "author": {
+    "name": "Runtime Software Development",
+    "email": "support@goruntime.ca",
+    "url": "https://goruntime.ca"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": "14.21.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Runtime-Software-Development/mle-queue.git"
+  },
+  "keywords": [
+    "queue",
+    "file processing",
+    "api",
+    "mountain legacy project"
+  ],
+  "bugs": {
+    "url": "https://github.com/Runtime-Software-Development/mle-queue/issues"
+  },
+  "homepage": "https://github.com/Runtime-Software-Development/mle-queue/#readme",
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "scripts": {
+    "start": "node --trace-warnings ./server.js",
+    "dev": "nodemon --trace-warnings --inspect ./server.js",
+    "debug": "nodemon --trace-warnings --inspect --trace_gc ./server.js",
+    "build": "npm install --os=linux --cpu=x64 sharp && npm install --include=optional",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "bull": "^4.0.0",
+    "dotenv": "16.5.0",
+    "exiftool-vendored": "^14.0.0",
+    "express": "^4.17.1",
+    "form-data": "^4.0.2",
+    "node-fetch": "^2.6.1",
+    "redis": "^4.0.0",
+    "sharp": "0.33.2"
+  }
+}

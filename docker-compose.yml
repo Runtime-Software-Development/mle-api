@@ -1,41 +1,56 @@
 services:
-  mlpapi:
-    image: mlp-api
+  mle-api:
+    container_name: mle_api
     build:
-      context: .
+      context: ./api 
       dockerfile: ./Dockerfile
     env_file:
       - .env
     ports:
       - 3001:3001
-      - 9229:9229
-    command: ["npm", "--inspect=0.0.0.0:9229", "start"]
+    command: ["npm", "run", "dev"]
     depends_on:
       postgres:
         condition: service_healthy
-    # *** THESE ARE THE KEY CHANGES FOR LIVE RELOADING ***
     volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
+      - ./api:/usr/src/app
+      - /usr/src/app/node_modules 
+      - mle_shared_data:/usr/src/app/data
+    networks:
+      - mle_network
 
   keycloak:
+    container_name: keycloak_server
     image: quay.io/keycloak/keycloak:24.0.2
-    command: start-dev --http-port=8081 --import-realm
+    command: start --http-port=8081 --import-realm --optimized
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_DB: dev-mem 
+      KC_DB: dev-file
+      # KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      # KC_DB_USERNAME: boutrous
+      # KC_DB_PASSWORD: boutrous
+      KC_HTTP_ENABLED: 'true'
+      KC_HOSTNAME: localhost
+      KC_HTTP_PORT: 8081
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8081:8081"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/realms/master"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
     volumes:
-      - ./kiln-test-realm.json:/opt/keycloak/data/import/kiln-test-realm.json
+      - ./mle-test-realm.json:/opt/keycloak/data/import/mle-test-realm.json
+      - keycloak_data:/opt/keycloak/data
+    networks:
+      - mle_network
 
   postgres:
+    container_name: postgres_db
     image: postgres:16-alpine 
     env_file:
       - .env
@@ -50,6 +65,49 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - mle_network
+
+  redis:
+    image: redis:latest
+    container_name: redis_server
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - mle_network
+
+  mle-queue:
+    build:
+      context: ./queue
+      dockerfile: ./Dockerfile
+    container_name: mle_queue
+    command: ["npm", "run", "dev"]
+    env_file:
+      - .env
+    ports:
+      - 3002:3002
+    volumes:
+      # These mounts are for development/live-reloading. Consider carefully if needed.
+      - ./queue:/usr/src/app
+      - /usr/src/app/node_modules
+      - mle_shared_data:/usr/src/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - mle_network
+
+networks:
+  mle_network:
+    name: mle_global_network
+    driver: bridge
 
 volumes:
   postgres_data:
+  keycloak_data:
+  mle_shared_data:

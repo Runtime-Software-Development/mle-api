@@ -145,3 +145,9 @@ dist
 
 # AWS
 .aws
+
+# data storage
+data/
+api/data/
+queue/data/
+

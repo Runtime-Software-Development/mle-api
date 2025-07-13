@@ -1,0 +1,155 @@
+{
+  "realm": "mle-realm",
+  "enabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "visitor",
+        "description": "Guest user role with minimal access"
+      },
+      {
+        "name": "registered",
+        "description": "Default registered user role"
+      },
+      {
+        "name": "editor",
+        "description": "User with editing privileges"
+      },
+      {
+        "name": "administrator",
+        "description": "Administrator role with broader management access"
+      },
+      {
+        "name": "super_administrator",
+        "description": "Highest level administrator role"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "id": "fbc9e210-5aee-4421-8f65-0ba0a0bfa99d",
+      "clientId": "mle-kc-client",
+      "name": "MLE Authentication (Internal)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "5b01ce26-d23b-4c2d-9371-a7be962f23f6",
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "MLE Client Roles from Realm Roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "multivalued": "true",
+            "json.token.introspect": "false",
+            "claim.name": "resource_access['mle-kc-client'].roles",
+            "full.path": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "mle-admin",
+      "firstName": "MLE",
+      "lastName": "Admin",
+      "emailVerified": true,
+      "email": "super-admin@mountainlegacy.ca",
+      "enabled": true,
+      "realmRoles": [
+        "super_administrator"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "SuAdminTestt!DB49K"
+        }
+      ]
+    },
+    {
+      "username": "mle-administrator",
+      "firstName": "MLE",
+      "lastName": "Administrator",
+      "emailVerified": true,
+      "email": "admin@mountainlegacy.ca",
+      "enabled": true,
+      "realmRoles": [
+        "administrator"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "AdminTest!DB49K"
+        }
+      ]
+    },
+    {
+      "username": "mle-editor",
+      "firstName": "MLE",
+      "lastName": "Editor",
+      "emailVerified": true,
+      "email": "editor@mountainlegacy.ca",
+      "enabled": true,
+      "realmRoles": [
+        "editor"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "EditorTest!DB49K"
+        }
+      ]
+    },
+    {
+      "username": "mle-registered",
+      "firstName": "MLE",
+      "lastName": "Registered",
+      "emailVerified": true,
+      "email": "registered@mountainlegacy.ca",
+      "enabled": true,
+      "realmRoles": [
+        "registered"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "RegisteredTest!DB49K"
+        }
+      ]
+    },
+    {
+      "username": "mle-visitor",
+      "firstName": "MLE",
+      "lastName": "Visitor",
+      "emailVerified": true,
+      "email": "visitor@mountainlegacy.ca",
+      "enabled": true,
+      "realmRoles": [
+        "visitor"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "VisitorTest!DB49K"
+        }
+      ]
+    }
+  ]
+}
