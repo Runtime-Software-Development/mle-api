@@ -64,74 +64,99 @@ function promisifyBusboy(req, modelType, ownerData, constructors) {
         req.on("aborted", abort); // Client disconnect
 
         bb.on('close', async () => {
-            // set file model metadata
-            const metadata = fields.reduce((acc, field) => {
-                if (field.index === null) {
-                    acc[field.name] = field.value;
-                }
-                return acc;
-            }, {});
-
-            // set additional file metadata
-            const imageState = metadata?.image_state || '';
-            const imageType = metadata?.image_type || '';
-            const metadataFileType = metadata?.type || '';
-
-            // return parsed data
-            const result = {
-                owner: new constructors[ownerData?.type](ownerData),
-                model: new constructors[modelType](metadata),
-                files: files.map(({ index, file, file_type, secure_token, encoding }) => {
-                    const fileModelData = fields
-                        .filter((field) => field.index === index)
-                        .reduce((acc, field) => {
-                            acc[field.name] = field.value;
-                            return acc;
-                        }, {});
-                    fileModelData.secure_token = secure_token;
-
-                    // when file type is the same as proximate model type, set owner type and id
-                    if (file_type === modelType) {
-                        // set owner type and id for model files
-                        fileModelData.owner_type = ownerData?.type;
-                        fileModelData.owner_id = ownerData?.id;
-                        file.owner_type = ownerData?.type;
-                        file.owner_id = ownerData?.id;
+            try {
+                // set file model metadata
+                const metadata = fields.reduce((acc, field) => {
+                    if (field.index === null) {
+                        acc[field.name] = field.value;
                     }
+                    return acc;
+                }, {});
 
-                    console.log(`Processing file: ${file?.filename} of type ${file_type} for file model ${fileModelData}`);
+                // index fields by their index value
+                const indexedMetadata = fields.reduce((acc, field) => {
+                    if (typeof field.index === 'number' && field.index >= 0) {
+                        if (!acc.hasOwnProperty(field.name) || !Array.isArray(acc[field.name])) {
+                            acc[field.name] = [];
+                        }
+                        acc[field.name][field.index] = field.value;
+                    }
+                    return acc;
+                }, {});
 
-                    // insert token into filename
-                    const tokenizedFilename = [
-                        file?.filename.slice(0, file?.filename.lastIndexOf('.')),
-                        secure_token,
-                        file?.filename.slice(file?.filename.lastIndexOf('.'))].join('');
+                // set additional file metadata
+                const imageState = metadata?.image_state || '';
+                const imageType = metadata?.image_type || '';
+                const metadataFileType = metadata?.type || '';
 
-                    // update file system path
-                    // - capture images include image state, image type, file type and the file system path
-                    //   is based on the file model.
-                    // - other file types file system paths are based on the owner node.
-                    file.fs_path = path.join(
-                        fileModelData.fs_path || ownerData?.fs_path,
-                        modelType !== file_type ? modelType : '',
-                        file_type,
-                        imageType,
-                        metadataFileType,
-                        imageState,
-                        tokenizedFilename
-                    );
+                // handle owner data
+                if (ownerData) {
+                    metadata.owner_type = ownerData?.type;
+                    metadata.owner_id = ownerData?.id;
+                }
 
-                    return {
-                        file: new constructors['files'](file),
-                        file_model: new constructors[file_type]({ ...fileModelData, ...metadata }),
-                        file_type,
-                        encoding
-                    };
-                }),
-            };
-            resolve(result); // Resolve the promise on close
+                console.log(`Processing import for model ${modelType}`, ownerData);
+
+                // return parsed data
+                const result = {
+                    indexedMetadata,
+                    metadata,
+                    owner: ownerData?.type && new constructors[ownerData?.type](ownerData),
+                    model: new constructors[modelType](metadata),
+                    files: files.map(({ index, file, file_type, secure_token, encoding }) => {
+                        const fileModelData = fields
+                            .filter((field) => field.index === index)
+                            .reduce((acc, field) => {
+                                acc[field.name] = field.value;
+                                return acc;
+                            }, {});
+                        fileModelData.secure_token = secure_token;
+
+                        // when file type is the same as proximate model type, set owner type and id
+                        if (file_type === modelType) {
+                            // set owner type and id for model files
+                            fileModelData.owner_type = ownerData?.type;
+                            fileModelData.owner_id = ownerData?.id;
+                            file.owner_type = ownerData?.type;
+                            file.owner_id = ownerData?.id;
+                        }
+
+                        console.log(`Processing file: ${file?.filename} of type ${file_type} for file model ${modelType}`);
+
+                        // insert token into filename
+                        const tokenizedFilename = [
+                            file?.filename.slice(0, file?.filename.lastIndexOf('.')),
+                            secure_token,
+                            file?.filename.slice(file?.filename.lastIndexOf('.'))].join('');
+
+                        // update file system path
+                        // - capture images include image state, image type, file type and the file system path
+                        //   is based on the file model.
+                        // - other file types file system paths are based on the owner node.
+                        file.fs_path = path.join(
+                            fileModelData.fs_path || ownerData?.fs_path,
+                            modelType !== file_type ? modelType : '',
+                            file_type,
+                            imageType,
+                            metadataFileType,
+                            imageState,
+                            tokenizedFilename
+                        );
+
+                        return {
+                            file: new constructors['files'](file),
+                            file_model: new constructors[file_type]({ ...fileModelData, ...metadata }),
+                            file_type,
+                            encoding
+                        };
+                    }),
+                };
+                resolve(result); // Resolve the promise on close
+
+            } catch (err) {
+                reject(err); // Reject the promise on error
+            }
         });
-
         req.pipe(bb);
     });
 }

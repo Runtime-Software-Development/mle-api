@@ -16,6 +16,9 @@ RUN npm install
 # Copy the application source code
 COPY . .
 
+# Create shared data directory with open permissions for cross-container access
+RUN mkdir -p /usr/src/app/data && chmod 1777 /usr/src/app/data
+
 # Expose port 3002 for local testing
 EXPOSE 3002
 

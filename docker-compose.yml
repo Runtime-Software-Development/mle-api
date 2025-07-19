@@ -14,7 +14,7 @@ services:
         condition: service_healthy
     volumes:
       - ./api:/usr/src/app
-      - /usr/src/app/node_modules 
+      - /usr/src/app/node_modules
       - mle_shared_data:/usr/src/app/data
     networks:
       - mle_network
@@ -92,7 +92,6 @@ services:
     ports:
       - 3002:3002
     volumes:
-      # These mounts are for development/live-reloading. Consider carefully if needed.
       - ./queue:/usr/src/app
       - /usr/src/app/node_modules
       - mle_shared_data:/usr/src/app/data

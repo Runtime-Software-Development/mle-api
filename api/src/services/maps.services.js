@@ -208,6 +208,6 @@ export const insertMapFeatures = async function (features, owner) {
     } catch (err) {
         throw err;
     } finally {
-        await client.release(true);
+        client.release(true);
     }
 }

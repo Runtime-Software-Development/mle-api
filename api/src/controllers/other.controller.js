@@ -74,7 +74,7 @@ export const download = async (req, res, next) => {
         return next(err);
     }
     finally {
-        await client.release(true);
+        client.release(true);
     }
 };
 
@@ -88,6 +88,8 @@ export const download = async (req, res, next) => {
  * @src public
  */
 export const retryJob = async (req, res, next) => {
+
+    console.log(`[Admin] Attempting to retry job ID: ${req.params.id} via Queue API.`);
     const jobId = req.params.id;
     const QUEUE_API_URL = process.env.MLE_QUEUE_SERVER_URL || 'http://mle-queue:3002';
     const RETRY_ENDPOINT = `/jobs/retry/${jobId}`; // Endpoint on the queue API
@@ -147,6 +149,81 @@ export const retryJob = async (req, res, next) => {
             });
         } else {
             console.error(`[Admin] Network error when trying to retry job ID ${jobId} with Queue API: ${error.message}`);
+            return res.status(500).json({
+                success: false,
+                message: `Failed to connect to queue API for job ID ${jobId}.`,
+                details: error.message
+            });
+        }
+    }
+};
+
+/**
+ * Delete a job with the given ID from the Bull queue via Queue API.
+ *
+ * @param {Object} req - Request object from Express.js
+ * @param {Object} res - Response object from Express.js
+ * @param {Function} next - Next middleware function
+ * @src public
+ */
+export const removeJob = async (req, res, next) => {
+    console.log(`[Admin] Attempting to delete job ID: ${req.params.id} via Queue API.`);
+    const jobId = req.params.id;
+    const QUEUE_API_URL = process.env.MLE_QUEUE_SERVER_URL || 'http://mle-queue:3002';
+    const DELETE_ENDPOINT = `/jobs/delete/${jobId}`;
+    const FETCH_TIMEOUT_MS = 10000;
+
+    if (!jobId) {
+        return res.status(400).json({
+            success: false,
+            message: 'Job ID is required to delete a job.'
+        });
+    }
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+        const response = await fetch(`${QUEUE_API_URL}${DELETE_ENDPOINT}`, {
+            method: 'DELETE', // DELETE request for deleting a job
+            headers: {
+                'Content-Type': 'application/json',
+                // Add internal API keys or authentication headers if required
+                // 'X-Internal-API-Key': process.env.QUEUE_INTERNAL_API_KEY
+            },
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log(`[Admin] Job delete request for ID ${jobId} successfully sent to Queue API.`, result);
+            return res.status(200).json({
+                success: true,
+                message: `Job ID ${jobId} delete request submitted to queue.`,
+                data: result
+            });
+        } else {
+            const errorBody = await response.text();
+            console.error(`[Admin] Queue API returned non-2xx status for job ID ${jobId}: ${response.status} - ${errorBody}`);
+            return res.status(response.status).json({
+                success: false,
+                message: `Failed to delete job ID ${jobId} on queue API. Status: ${response.status}`,
+                details: errorBody
+            });
+        }
+
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.error(`[Admin] Timeout when trying to delete job ID ${jobId} with Queue API: ${error.message}`);
+            return res.status(504).json({
+                success: false,
+                message: `Queue API did not respond in time for job ID ${jobId}.`,
+                details: error.message
+            });
+        } else {
+            console.error(`[Admin] Network error when trying to delete job ID ${jobId} with Queue API: ${error.message}`);
             return res.status(500).json({
                 success: false,
                 message: `Failed to connect to queue API for job ID ${jobId}.`,

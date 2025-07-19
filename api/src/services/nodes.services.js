@@ -178,7 +178,7 @@ export const getTree = async function(model) {
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        await client.release(true);
+        client.release(true);
     }
 };
 
@@ -278,7 +278,7 @@ export const filterNodesByID = async (nodeIDs, offset, limit) => {
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        await client.release(true);
+        client.release(true);
     }
 };
 
@@ -380,6 +380,6 @@ export const getPath = async (inputNode) => {
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        await client.release(true);
+        client.release(true);
     }
 };

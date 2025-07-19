@@ -188,7 +188,7 @@ export default function ComparisonController() {
             return next(err);
         }
         finally {
-            await client.release(true);
+            client.release(true);
         }
     }
 
@@ -275,7 +275,7 @@ export default function ComparisonController() {
             return next(err);
         }
         finally {
-            await client.release(true);
+            client.release(true);
         }
     }
 
@@ -295,11 +295,12 @@ export default function ComparisonController() {
 
         try {
 
-            const received = await importer.receive(req);
+            // // receive and parse multi-part files and fields from request
+            const importedData = await importer.receive(req, nodeType);
 
             // extract capture data
-            const { data=null, files={} } = received || {};
-            const { historic_capture=null, modern_capture=null } = data || {};
+            const { files={} } = importedData || {};
+            const { historic_capture=null, modern_capture=null } = importedData?.indexedMetadata || {};
 
             // [1] handle historic image
             // get historic image file metadata
@@ -307,7 +308,7 @@ export default function ComparisonController() {
             const modernCapture = await nserve.select(modern_capture, client);
 
             // check if captures exist and files are present in request data
-            if (!historicCapture || !modernCapture || Object.keys(received.files).length < 2 ) {
+            if (!historicCapture || !modernCapture || Object.keys(importedData?.files).length < 2 ) {
                 return next(new Error('invalidRequest'));
             }
 
@@ -358,7 +359,7 @@ export default function ComparisonController() {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     }
 }

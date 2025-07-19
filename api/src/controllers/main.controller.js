@@ -94,7 +94,12 @@ export const status = async (_, res, next) => {
         };
 
         // Log the health check results
-        res.status(200).json(systemStatus);
+        res.status(200).json(
+            prepare({
+                view: 'dashboard',
+                data: systemStatus,
+            })
+        );
 
     } catch (err) {
         // Catch any unexpected errors during the status check itself

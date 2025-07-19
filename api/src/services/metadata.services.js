@@ -127,7 +127,7 @@ export const getParticipantGroups = async function(ownerID, groupType, client ) 
  * @param {Object} item
  * @param {Boolean} upsert
  * @param client
- * @return {Function} query function / null if no node
+ * @return {Promise} query function / null if no node
  * @public
  */
 
@@ -212,7 +212,7 @@ export const updateGroup = async (newItems, modelType, ownerID, groupType, idKey
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        await client.release(true);
+        client.release(true);
     }
 };
 
@@ -240,7 +240,7 @@ export const remove = async(item, client) => {
  * @param {String} modelType
  * @param {String} groupType
  * @param client
- * @return {Function} query function / null if no node
+ * @return {Promise} query function / null if no node
  * @public
  */
 

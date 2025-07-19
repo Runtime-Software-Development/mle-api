@@ -124,9 +124,7 @@ export function filterByIDArray(ids, offset, limit) {
  */
 
 export function insert(node) {
-    console.log('Generating insert query for node:', node);
     const fn = defaults.insert(node);
-    console.log('Generated insert query:', fn);
     return fn(node);
 }
 

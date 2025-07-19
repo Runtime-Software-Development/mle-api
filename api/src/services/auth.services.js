@@ -13,6 +13,7 @@
  */
 
 import jwt from 'jsonwebtoken';
+// import jwksClient from 'jwks-rsa';
 import fetch from 'node-fetch';
 import { getRoleData } from './users.services.js';
 import AbortController from "abort-controller";
@@ -101,6 +102,42 @@ function extractRolesFromDecodedToken(decoded, clientId) {
     }
 
     return roles;
+}
+
+
+// const client = jwksClient({
+//   jwksUri: 'https://${settings.serverURL}/realms/${settings.realm}/protocol/openid-connect/certs'
+// });
+
+/**
+ * Retrieves the signing key from the JWKS endpoint and calls the callback with it.
+ * @param {Object} header - The JWT header containing the key ID.
+ * @param {function} callback - The callback to call with the signing key.
+ * @private
+ */
+function getKey(header, callback) {
+  client.getSigningKey(header.kid, function(err, key) {
+    if (err) return callback(err);
+    const signingKey = key.getPublicKey();
+    callback(null, signingKey);
+  });
+}
+
+// Returns true if the token is valid, false otherwise
+export async function validateSignature(token) {
+  return new Promise((resolve) => {
+    jwt.verify(token, getKey, {
+      audience: settings.clientId,
+      issuer: 'https://${settings.serverURL}/realms/${settings.realm}',
+      algorithms: ['RS256']
+    }, (err, decoded) => {
+      if (err) {
+        resolve(false);
+      } else {
+        resolve(true);
+      }
+    });
+  });
 }
 
 /**
@@ -226,6 +263,71 @@ export const authorize = async (req, res, allowedRoles) => {
     }
 
 }
+
+// export const authorize = async (req, res, allowedRoles) => {
+//     // 1. Visitor role: authorize all
+//     if (allowedRoles.includes('visitor')) return null;
+
+//     let token = null;
+//     let usedHeader = false;
+
+//     // 2. Prefer Authorization header (for service accounts)
+//     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+//     if (authHeader && authHeader.startsWith('Bearer ')) {
+//         console.log('Service Request')
+//         token = authHeader.substring(7);
+//         usedHeader = true;
+//     } else {
+//         // 3. Fallback to cookies (for user authentication)
+//         const { access_token = null, refresh_token = null } = req.signedCookies || {};
+//         if (!access_token || !refresh_token)
+//             throw new Error('noToken');
+//         token = access_token;
+//     }
+
+//     // 4. Validate access token
+//     // let isValid = await validate(token);
+
+//     // 5. If invalid and using cookies, try to refresh
+//     if (!isValid && !usedHeader) {
+//         // Only attempt to refresh for user (cookie-based)
+//         const data = await refresh(req);
+
+//         if (!data) throw new Error('noAuth');
+
+//         const { access_token: new_access_token = null, refresh_token: new_refresh_token = null } = data || {};
+//         token = new_access_token;
+
+//         // Set new cookies for browser
+//         res.cookie("access_token", new_access_token, { httpOnly: true, sameSite: 'strict', signed: true, secure: true });
+//         res.cookie("refresh_token", new_refresh_token, { httpOnly: true, sameSite: 'strict', signed: true, secure: true });
+
+//         // isValid = await validate(token) || true;
+//     }
+
+//     // if (!isValid)
+//     //     throw new Error('invalidToken');
+
+//     // 6. Decode and extract roles
+//     const decoded = jwt.decode(token);
+//     if (!decoded)
+//         throw new Error('invalidToken');
+
+//     const roles = extractRolesFromDecodedToken(decoded, settings.clientId);
+
+//     if (!allowedRoles.some(role => roles.includes(role)))
+//         throw new Error('restricted');
+
+//     // 7. Compose user data
+//     const roleData = await getRoleData();
+//     const role = roles.length > 0 ? roleData.find(r => r.name === roles[0]) : { label: 'Administrator' };
+
+//     return {
+//         email: decoded.email,
+//         role: roles,
+//         label: role.label || 'Registered'
+//     };
+// };
 
 /**
  * Logout user from KeyCloak.

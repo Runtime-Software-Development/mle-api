@@ -25,7 +25,7 @@ const settings = {
     realm: process.env.MLE_KC_REALM,
     clientId: process.env.MLE_KC_CLIENT_ID,
     clientSecret: process.env.MLE_KC_CLIENT_SECRET,
-    grantType: 'password',
+    grantType: 'client_credentials',
     ssl: "external",
     bearerOnly: true
 }
@@ -72,7 +72,7 @@ export function getOpts(payload = null, method = 'POST') {
  */
 export const getServiceToken = async () => {
     const payload = {
-        grant_type: 'client_credentials',
+        grant_type: settings.grantType,
         client_id: settings.clientId,
         client_secret: settings.clientSecret,
     };

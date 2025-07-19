@@ -195,8 +195,8 @@ export function insert(
     if (!model) return null;
 
     // filter ignored columns
-    // - do not ignore if model is for a node or file
-    const ignore = !model.isNode && !model.isFile ? [] : [model.idKey];
+    // - do not ignore ID value if model is for a node or file
+    const ignore = !model.isNode && !model.isFile && !model.isMetadata ? [] : [model.idKey];
     const cols = Object
         .keys(model.attributes)
         .filter(key => !ignore.includes(key));
@@ -263,7 +263,7 @@ export function update(model, timestamps = ['updated_at']) {
 
     // filter ignored columns:
     // - DO NOT ignore ID, CREATE_AT columns if model is a node instance
-    const ignore = model.node ? [] : [model.idKey, 'created_at'];
+    const ignore = model.isNode ? [] : [model.idKey, 'created_at'];
     const cols = Object
         .keys(model.attributes)
         .filter(key => !ignore.includes(key));

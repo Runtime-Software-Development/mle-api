@@ -76,7 +76,7 @@ export default function ModelController(nodeType) {
      * @src public
      */
 
-    let constructors, Model, model, mserve;
+    let constructors, Model, modelTemplate, mserve;
 
     /**
      * Initialize the controller: generate services for model
@@ -92,8 +92,8 @@ export default function ModelController(nodeType) {
             // generate all model constructors
             constructors = await cserve.getConstructors();
             // create new model for given node type          
-            model = new constructors[nodeType]();
-            mserve = new ModelServices(model);
+            modelTemplate = new constructors[nodeType]();
+            mserve = new ModelServices(modelTemplate);
         }
         catch (err) {
             console.error(err);
@@ -111,8 +111,8 @@ export default function ModelController(nodeType) {
      */
 
     this.getId = function (req) {
-        return req.params.hasOwnProperty(model.key)
-            ? parseInt(req.params[model.key])
+        return req.params.hasOwnProperty(modelTemplate.key)
+            ? parseInt(req.params[modelTemplate.key])
             : null;
     };
 
@@ -145,7 +145,7 @@ export default function ModelController(nodeType) {
             const path = await nserve.getPath(itemData.node);
 
             // append second-level dependents (if node depth is above threshold)
-            if (model.depth > 1) {
+            if (modelTemplate.depth > 1) {
                 itemData.dependents = await Promise.all(
                     itemData.dependents.map(async (dependent) => {
                         const { node = {} } = dependent || {};
@@ -162,7 +162,7 @@ export default function ModelController(nodeType) {
             res.status(200).json(
                 prepare({
                     view: 'show',
-                    model: model,
+                    model: modelTemplate,
                     data: itemData,
                     path: path
                 }));
@@ -192,7 +192,7 @@ export default function ModelController(nodeType) {
             let { owner_id = 0 } = req.params || {};
 
             // update model
-            model.setValue('owner_id', owner_id);
+            modelTemplate.setValue('owner_id', owner_id);
 
             // get path of node in hierarchy
             const owner = await nserve.select(sanitize(owner_id, 'integer'), client);
@@ -202,8 +202,8 @@ export default function ModelController(nodeType) {
             res.status(200).json(
                 prepare({
                     view: 'new',
-                    model: model,
-                    data: model.getData(),
+                    model: modelTemplate,
+                    data: modelTemplate.getData(),
                     path: path
                 }));
 
@@ -236,7 +236,7 @@ export default function ModelController(nodeType) {
             let ownerData = null;
             let filesResult = [];
             let msg = '';
-            if (req?.params?.owner_id && model.isRoot) return next(new Error('invalidRequest'));
+            if (req?.params?.owner_id && modelTemplate.isRoot) return next(new Error('invalidRequest'));
             else if (req?.params?.owner_id) {
                 // Pass client for consistent connection
                 ownerData = await nserve.select(req?.params?.owner_id, client); 
@@ -244,10 +244,9 @@ export default function ModelController(nodeType) {
             }
 
             // receive and parse multi-part files and fields from request
-            const {files, model, owner } = await importer.receive(req, nodeType, ownerData);
+            const {files, model } = await importer.receive(req, nodeType, ownerData);
 
-            console.log('Received files and metadata:', files);
- throw new Error('invalidRequest');
+            console.log('Received files and metadata:', files, model );
 
             // Insert new model instance
             const modelInstance = await mserve.insert(model, client);
@@ -255,6 +254,13 @@ export default function ModelController(nodeType) {
 
             // Save files and insert file owner records
             if ((files || []).length > 0) {
+                // update each item with owner data
+                files.forEach((fileData) => {
+                    fileData.file_model.setValue('owner_id', modelInstance.id);
+                    fileData.file.setValue('owner_id', modelInstance.id);
+                    fileData.file.setValue('owner_type', modelInstance.name);
+                });
+                console.log(`Files to upload: ${files}`, files);
                 filesResult = await fserve.upload(files, modelInstance, client); 
                 msg += ` Files submitted to queue for uploading. Refresh the page to see results.`
             }
@@ -319,7 +325,7 @@ export default function ModelController(nodeType) {
             res.status(200).json(
                 prepare({
                     view: 'edit',
-                    model: model,
+                    model: modelTemplate,
                     data: itemData,
                     path: path
                 }));
@@ -328,7 +334,7 @@ export default function ModelController(nodeType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -359,22 +365,20 @@ export default function ModelController(nodeType) {
             // item record and/or node not found in database
             if (!itemData) return next(new Error('notFound'));
 
-            // process imported metadata
-            const { node = {}, metadata = {} } = itemData || {};
-            const { owner_id = '', owner_type = '' } = node || {};
-            const importedData = await importer.receive(req, owner_id, owner_type);
+            // get the owner metadata
+            const ownerData = await nserve.get(itemData?.node?.owner_id, itemData?.node?.owner_type, client); 
 
-            // create model instance and inject data
-            const item = new Model(metadata);
-            item.setData(importedData?.data);
+            // process imported metadata
+            const { node = {} } = itemData || {};
+            // receive and parse multi-part files and fields from request
+            const importedData = await importer.receive(req, nodeType, ownerData?.node);
 
             // update database record
-            await mserve.update(item);
+            await mserve.update(importedData?.model);
 
             // capture metadata? check for any dependent updates
             if (node.type === 'historic_captures' || node.type === 'modern_captures') {
-                const { data = {} } = importedData || {};
-                const { historic_captures = {}, modern_captures = {} } = data || {};
+                const { historic_captures = {}, modern_captures = {} } = importedData?.indexedMetadata || {};
                 const comparisonCaptures = node.type === 'historic_captures'
                     ? Object.values(modern_captures) : Object.values(historic_captures);
                 await updateComparisons(node, comparisonCaptures, client);
@@ -390,11 +394,11 @@ export default function ModelController(nodeType) {
             res.status(200).json(
                 prepare({
                     view: 'show',
-                    model: model,
+                    model: modelTemplate,
                     data: updatedItem,
                     path: path,
                     message: {
-                        msg: `'${updatedItem.label}' ${humanize(model.name)} updated successfully!`,
+                        msg: `'${updatedItem.label}' ${humanize(modelTemplate.name)} updated successfully!`,
                         type: 'success'
                     },
                 }));
@@ -403,7 +407,7 @@ export default function ModelController(nodeType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -482,7 +486,7 @@ export default function ModelController(nodeType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -518,20 +522,20 @@ export default function ModelController(nodeType) {
             }
 
             // get path of owner node in hierarchy (if exists)
-            model.setData(itemData.metadata);
-            const owner = await nserve.select(model?.ownerID, client);
+            modelTemplate.setData(itemData.metadata);
+            const owner = await nserve.select(modelTemplate?.ownerID, client);
             const path = await nserve.getPath(owner);
 
             // delete item (and attached files, if they exist)
-            const result = await mserve.remove(model, client);
+            const result = await mserve.remove(modelTemplate, client);
 
             res.status(200).json(
                 prepare({
                     view: 'remove',
-                    model: model,
+                    model: modelTemplate,
                     data: result,
                     message: {
-                        msg: `'${itemData.label}' ${humanize(model.name)} deleted successful!`,
+                        msg: `'${itemData.label}' ${humanize(modelTemplate.name)} deleted successful!`,
                         type: 'success'
                     },
                     path: path

@@ -44,6 +44,6 @@ export const summary = async () => {
     } catch (err) {
         throw err;
     } finally {
-        await client.release(true);
+        client.release(true);
     }
 };

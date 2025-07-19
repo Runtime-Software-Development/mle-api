@@ -66,7 +66,7 @@ export const show = async (req, res, next) => {
         return next(err);
     }
     finally {
-        await client.release(true);
+        client.release(true);
     }
 };
 
@@ -133,7 +133,7 @@ export const map = async (req, res, next) => {
         return next(err);
     }
     finally {
-        await client.release(true);
+        client.release(true);
     }
 };
 

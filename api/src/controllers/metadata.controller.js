@@ -25,7 +25,7 @@ import * as metaserve from '../services/metadata.services.js';
 import { prepare } from '../lib/api.utils.js';
 import pool from '../services/db.services.js';
 import {humanize, sanitize} from '../lib/data.utils.js';
-import * as fserve from '../services/import.services.js';
+import * as importer from '../services/import.services.js';
 import {getParticipantGroupTypes} from "../services/schema.services.js";
 
 
@@ -136,7 +136,7 @@ export default function MetadataController(metadataType) {
             return next(err);
         }
         finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -177,7 +177,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -196,24 +196,23 @@ export default function MetadataController(metadataType) {
 
         try {
             const ownerID = this.getOwnerId(req);
-            let ownerType = null;
 
-            // get owner ID from parameters
+            // get owner data from parameters
+            let ownerData = null;
             if (ownerID) {
                 // get owner metadata record (if exists)
-                const owner = await nserve.select(ownerID, client);
+                ownerData = await nserve.select(ownerID, client);
                 // check owner exists
-                if (!owner) return next(new Error('invalidRequest'));
-                // update owner type
-                ownerType = owner.type;
+                if (!ownerData) return next(new Error('invalidRequest'));
+            }
+            else {
+                next(new Error('invalidRequest'));
+                return;
             }
 
-            // filter metadata through importer
-            // - saves any attached files to library
-            // - collates metadata
-            const mdData = await fserve.receive(req, ownerID, ownerType);
-            let item = new Metadata(mdData.data);
-            const data = await metaserve.insert(item, false, client);
+            // receive and parse multi-part files and fields from request
+            const { model } = await importer.receive(req, metadataType, ownerData);
+            const data = await metaserve.insert(model, false, client);
 
             // send create response
             res.status(200).json(
@@ -231,7 +230,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -261,15 +260,16 @@ export default function MetadataController(metadataType) {
             if (!selectData) return next(new Error('invalidRequest'));
             // get owner node; check that node exists in database
             // and corresponds to requested owner type.
-            const owner = await nserve.select(selectData.owner_id, client);
-            if (owner) {
-                ownerID = owner.id;
-                ownerType = owner.type;
+            const ownerData = await nserve.select(selectData?.owner_id, client);
+            console.log(ownerData);
+            if (ownerData) {
+                ownerID = ownerData.id;
+                ownerType = ownerData.type;
             }
 
-            // create metadata item from request data
-            const mdData = await fserve.receive(req, ownerID, ownerType);
-            let item = new Metadata(mdData.data);
+            // receive and parse multi-part files and fields from request
+            const importedData = await importer.receive(req, metadataType, ownerData);
+            let item = new Metadata(importedData?.metadata);
 
             // include requested ID / owner ID
             item.id = id;
@@ -294,7 +294,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -341,7 +341,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -391,7 +391,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -414,13 +414,13 @@ export default function MetadataController(metadataType) {
             const ownerID = this.getId(req) || this.getOwnerId(req);
 
             // get owner metadata record
-            const owner = await nserve.select(sanitize(ownerID, 'integer'), client);
+            const ownerData = await nserve.select(sanitize(ownerID, 'integer'), client);
 
             // check owner exists
-            if (!owner) return next(new Error('invalidRequest'));
+            if (!ownerData) return next(new Error('invalidRequest'));
 
-            // filter request through data importer
-            const inputMetadata = await fserve.receive(req, owner.id, owner.type);
+            // receive and parse multi-part files and fields from request
+            const importedData = await importer.receive(req, metadataType, ownerData);
 
             // process input request data for participant groups
             // data: {
@@ -438,22 +438,22 @@ export default function MetadataController(metadataType) {
                 // - creates new group for participants sent in request
                 // - OR adds participants to existing groups
                 let newParticipants;
-                if (inputMetadata.data.hasOwnProperty(groupType)) {
-                    newParticipants = Object.values(inputMetadata.data[groupType]).map(id => {
+                if (importedData?.metadata.hasOwnProperty(groupType)) {
+                    newParticipants = Object.values(importedData.data[groupType]).map(id => {
                         return {
                             participant_id: id,
                             owner_id: ownerID,
                             group_type: groupType
                         };
                     });
-                    result.push(await metaserve.updateGroup(newParticipants, metadataModel.name, owner.id, groupType));
+                    result.push(await metaserve.updateGroup(newParticipants, metadataModel.name, ownerData.id, groupType));
                 }
                 // delete the group if no participants are in request
                 else {
                     // remove all participants in each group
-                    await metaserve.updateGroup([], metadataModel.name, owner.id, groupType, 'participant_id');
+                    await metaserve.updateGroup([], metadataModel.name, ownerData.id, groupType, 'participant_id');
                     // remove the group
-                    result.push(await metaserve.removeGroup(owner.id, metadataType, groupType, client));
+                    result.push(await metaserve.removeGroup(ownerData.id, metadataType, groupType, client));
                 }
             }));
 
@@ -473,7 +473,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -526,7 +526,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 

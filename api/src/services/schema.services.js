@@ -137,7 +137,7 @@ export const create = async (constructorType) => {
         console.error(err)
         throw Error(err);
     } finally {
-        await client.release(true);
+        client.release(true);
     }
 };
 

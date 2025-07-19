@@ -87,6 +87,7 @@ export const create = async (modelType) => {
         this.fileModel = null;
         this.isNode = modelType === 'nodes';
         this.isFile = modelType === 'files';
+        this.isMetadata = schema.metadataTypes.includes(modelType);
 
         // initialize model with input data
         this.setData = setData;
@@ -449,6 +450,7 @@ export const getConstructors = async function () {
         const nodeTypes = await schemaConstructor.getNodeTypes(client);
         const fileTypes = await schemaConstructor.getFileTypes(client);
         const fileRelations = await schemaConstructor.getFileOwnerType(client);
+        const metadataTypes = await schemaConstructor.getMetadataTypes(client);
         // generate constructors for each node type
         const constructors = {};
         await Promise.all(nodeTypes.map(async (nodeType) => {
@@ -459,6 +461,11 @@ export const getConstructors = async function () {
         await Promise.all(fileTypes.map(async (fileType) => {
             // add constructor to the constructors object
             constructors[fileType] = await create(fileType);
+        }));
+        // generate constructors for each metadata type
+        await Promise.all(metadataTypes.map(async (metadataType) => {
+            // add constructor to the constructors object
+            constructors[metadataType] = await create(metadataType);
         }));
         // generate constructors for files and nodes
         constructors['files'] = await create('files');

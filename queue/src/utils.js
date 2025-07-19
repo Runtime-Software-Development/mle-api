@@ -14,6 +14,43 @@ import path from 'path';
 import sharp from 'sharp';
 import stream from 'stream';
 import util from 'util';
+import { getCameraMetadata } from './services.js';
+
+/**
+ * Ensures a directory exists, creating it if it doesn't.
+ * @param {string} directoryPath - The absolute path to the directory.
+ */
+export const ensureDirectoryExists = (directoryPath) => {
+    if (!directoryPath) {
+        console.warn('Attempted to ensure existence of an empty directory path.');
+        return;
+    }
+    try {
+        if (!fs.existsSync(directoryPath)) {
+            fs.mkdirSync(directoryPath, { recursive: true });
+            console.log(`Created directory: ${directoryPath}`);
+        } else {
+            console.log(`Directory already exists: ${directoryPath}`);
+        }
+    } catch (err) {
+        console.error(`Error ensuring directory exists for ${directoryPath}:`, err);
+        // Depending on criticality, you might want to throw the error
+        // process.exit(1); // Exit if a critical directory cannot be created
+    }
+};
+
+/**
+ * Ensures all specified application directories exist.
+ */
+export const ensureAppDirectories = () => {
+    console.log('Ensuring application directories exist...');
+
+    // Use process.env for paths, as they come from your .env file or environment
+    ensureDirectoryExists(process.env.MLE_UPLOAD_DIR);
+    ensureDirectoryExists(process.env.MLE_LOWRES_DIR);
+
+    console.log('Application directory check complete.');
+};
 
 /**
  * Sanitize data by PostGreSQL data type. Note for composite
@@ -105,9 +142,12 @@ export const getImageURL = (type = '', data = {}) => {
  * @returns {Promise<void>} - Promise resolving when metadata extraction is complete.
  */
 
-export const extractImageInfo = async (file, file_model, options) => {
-    const src = file?.filename_tmp;
+export const extractImageInfo = async (file, file_model) => {
+    // Define the tmp file source path and file type
+    const TMP_DIR = process.env.MLE_TMP_DIR;
+    const src = path.join(TMP_DIR || '', file?.filename_tmp);
     const fileType = file?.file_type;
+    const cameras = await getCameraMetadata();
 
     /**
      * Converts an ExifDateTime string to a JavaScript Date object.
@@ -125,7 +165,7 @@ export const extractImageInfo = async (file, file_model, options) => {
                 file_model.capture_datetime = date.toISOString();
             }
             console.log(`[INFO] Converted ExifDateTime to: ${file_model.capture_datetime}`);
-            
+
         } catch (error) {
             console.error('[ERROR] Failed to convert ExifDateTime:', error);
             return null;
@@ -137,8 +177,8 @@ export const extractImageInfo = async (file, file_model, options) => {
         // Start the ExifTool process
         const exifTags = await exiftool.read(src);
 
-        // debug
-        // console.log(`[INFO] EXIF metadata for file ${file?.filename}:`, exifTags);
+        // Debug
+        console.log(`[INFO] EXIF metadata for file ${file?.filename}:`, exifTags);
 
         convertExifDateTime(exifTags?.CreateDate);
         file_model.mimetype = exifTags?.MIMEType;
@@ -155,11 +195,23 @@ export const extractImageInfo = async (file, file_model, options) => {
         file_model.lng = sanitize(exifTags?.GPSLongitude, 'float');
         file_model.elev = sanitize(exifTags?.GPSAltitude, 'float');
 
-        // TODO: update camera and lens info
-        const camera = (options.cameras || []).find(camera => camera.label === exifTags?.Model);
-        if (camera) {
-            file_model.setValue('cameras_id', camera.value);
+        // Find matched camera
+        let matchedCamera = null;
+        if (exifTags?.Model && Array.isArray(cameras)) {
+            const normalizedModel = typeof exifTags?.Model === 'string' && exifTags?.Model.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            matchedCamera = (cameras || []).find(camera => {
+                // Ensure camera.label is a string before normalizing
+                if (typeof camera.label !== 'string') {
+                    return false;
+                }
+                const normalizedLabel = typeof camera?.label === 'string' && camera?.label.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                return  normalizedModel.includes(normalizedLabel) || normalizedLabel.includes(normalizedModel);
+            });
         }
+        // set cameras_id to the matched camera
+        file_model.cameras_id = matchedCamera?.value || null;
 
     } catch (error) {
         console.warn('[WARN] EXIF metadata extraction failed:', error);
@@ -168,6 +220,8 @@ export const extractImageInfo = async (file, file_model, options) => {
         await exiftool.end();
     }
 };
+
+
 /**
  * Build file source path for resampled images and metadata files
  * from file data.

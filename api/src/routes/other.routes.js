@@ -54,10 +54,24 @@ function OtherRoutes() {
          */
         edit: {
             path: '/admin/jobs/retry/:id',
-            get: this.controller.retryJob,
+            get: null,
+            put: null,
+            post: this.controller.retryJob,
+            delete: null,
+        },
+
+        /**
+         * DELETE /admin/jobs/remove/:id
+         * Removes a queued job by its ID.
+         *
+         * @public
+         */
+        remove: {
+            path: '/admin/jobs/remove/:id',
+            get: null,
             put: null,
             post: null,
-            delete: null,
+            delete: this.controller.removeJob,
         }
     }
 }

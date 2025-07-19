@@ -32,7 +32,7 @@
     "nodemon": "^3.1.4"
   },
   "scripts": {
-    "start": "node --trace-warnings ./server.js",
+    "start": "node ./server.js",
     "dev": "nodemon --trace-warnings --inspect ./server.js",
     "debug": "nodemon --trace-warnings --inspect --trace_gc ./server.js",
     "build": "npm install --os=linux --cpu=x64 sharp && npm install --include=optional",
@@ -45,6 +45,7 @@
     "express": "^4.17.1",
     "form-data": "^4.0.2",
     "node-fetch": "^2.6.1",
+    "pg": "^8.13.0",
     "redis": "^4.0.0",
     "sharp": "0.33.2"
   }

@@ -204,6 +204,6 @@ export const fulltext = async (q, offset, limit, filter) => {
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        await client.release(true);
+        client.release(true);
     }
 };

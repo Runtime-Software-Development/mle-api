@@ -25,7 +25,6 @@ import { sanitize } from '../lib/data.utils.js';
 import * as cserve from './construct.services.js';
 import * as metaserve from '../services/metadata.services.js';
 import { extractFileLabel } from '../lib/file.utils.js';
-import { getImageURL } from './images.services.js';
 import * as nserve from "./nodes.services.js";
 import AdmZip from 'adm-zip';
 import archiver from 'archiver';
@@ -105,7 +104,7 @@ export const filterFilesByID = async (fileIDs, file_type, offset, limit) => {
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        await client.release(true);
+        client.release(true);
     }
 };
 
@@ -391,8 +390,6 @@ export const upload = async (files, owner, client) => {
 
                 console.log(`Processing file: ${file.getValue('filename')} of type ${file_type} for file model ${file_model.name}`);
 
-                            console.log('Received files and metadata:', file_model.getData());
-
                 // get file size of temporary file
                 // Note that stat queries OS for readily available file metadata.
                 const filePathTmp = path.join(process.env.MLE_TMP_DIR, file?.getValue('filename_tmp'));
@@ -413,12 +410,13 @@ export const upload = async (files, owner, client) => {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            // Add any necessary authentication headers if Queue App requires them
+                            // Add any necessary authentication headers if Queue API requires them
                         },
                         body: JSON.stringify({
-                            file: result?.file,
-                            file_model: result?.file_model,
-                            owner
+                            file: result?.file.getData(),
+                            file_model: result?.file_model.getData(),
+                            owner: owner.getData(),
+                            process_type: file_type
                         }),
                     });
 
@@ -473,6 +471,7 @@ export const insert = async (file, fileModel, client) => {
     // create file node instance
     // - use file model instance with extracted file data
     const stmtFileNode = queries.files.insert(file);
+    console.log('File insert query:', stmtFileNode.sql, stmtFileNode.data);
     let fileRes = await client.query(stmtFileNode.sql, stmtFileNode.data);
 
     // update file metadata files_id with created file ID, defined image state
@@ -485,6 +484,7 @@ export const insert = async (file, fileModel, client) => {
     // insert file model metadata as new record
     // NOTE: need to define different query than current services object model
     const stmtFileData = queries.defaults.insert(fileModel)(fileModel);
+    console.log('File metadata insert query:', stmtFileData.sql, stmtFileData.data);
     let modelRes = await client.query(stmtFileData.sql, stmtFileData.data);
 
     // update file and owner metadata in returned models
@@ -1075,4 +1075,45 @@ export const getFileLabel = async (file, client) => {
     return queriesByType.hasOwnProperty(file_type)
         ? await queriesByType[file_type]() : queriesByType.default();
 
+};
+
+
+/**
+ * Create file source URLs for resampled images from file data.
+ *
+ * @public
+ * @param {String} type
+ * @param {Object} data
+ * @return {Promise} result
+ */
+
+export const getImageURL = (type = '', data = {}) => {
+
+    const { secure_token = '' } = data || {};
+    const rootURI = `${process.env.MLE_API_BASEURL}/uploads/`;
+
+    // generate resampled image URLs
+    const imgSrc = (token) => {
+        return Object.keys(imageSizes).reduce((o, key) => {
+            o[key] = new URL(`${key}_${token}.jpeg`, rootURI);
+            return o;
+        }, {});
+    };
+
+    // handle image source URLs
+    // - images use scaled versions of raw files
+    const fileHandlers = {
+        historic_images: () => {
+            return imgSrc(secure_token);
+        },
+        modern_images: () => {
+            return imgSrc(secure_token);
+        },
+        supplemental_images: () => {
+            return imgSrc(secure_token);
+        },
+    };
+
+    // Handle file types
+    return fileHandlers.hasOwnProperty(type) ? fileHandlers[type]() : null;
 };

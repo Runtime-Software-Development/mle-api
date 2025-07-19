@@ -52,7 +52,6 @@ export const ensureAppDirectories = () => {
 
     // Use process.env for paths, as they come from your .env file or environment
     ensureDirectoryExists(process.env.MLE_TMP_DIR);
-    ensureDirectoryExists(process.env.MLE_LOWRES_DIR);
     ensureDirectoryExists(process.env.MLE_LOG_DIR);
 
     console.log('Application directory check complete.');

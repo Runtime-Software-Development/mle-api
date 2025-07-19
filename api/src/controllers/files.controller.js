@@ -133,7 +133,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -184,7 +184,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -235,7 +235,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -349,7 +349,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -380,11 +380,13 @@ export default function FilesController(fileModelType) {
             // get metadata fields
             const {metadata='', file=''} = fileData || {};
             const {owner_id='', owner_type='', file_type=''} = file || {};
-            const imported = await importer.receive(req, owner_id, owner_type);
+            const ownerData = nserve.select(owner_id, client);
+            // receive and parse multi-part files and fields from request
+            const importedData = await importer.receive(req, fileModelType, ownerData);
 
             // overwrite metadata
-            Object.keys(imported.data).forEach((field) => {
-                metadata[field] = imported.data[field];
+            Object.keys(importedData.data).forEach((field) => {
+                metadata[field] = importedData.data[field];
             });
 
             // update owner in file metadata model
@@ -418,7 +420,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -462,7 +464,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -502,7 +504,7 @@ export default function FilesController(fileModelType) {
         } catch (err) {
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 
@@ -526,7 +528,7 @@ export default function FilesController(fileModelType) {
         } catch (err) {
             return next(err);
         } finally {
-            await client.release(true);
+            client.release(true);
         }
     };
 

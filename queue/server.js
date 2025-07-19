@@ -8,9 +8,10 @@
  */
 
 import express from 'express';
-import Bull from 'bull'; // Note: Bull is an older library, consider BullMQ for newer projects
+import Bull from 'bull'; // Note: Bull is an older library, TODO: Switch to BullMQ
 import { processJob } from './src/worker.js';
 import dotenv from 'dotenv';
+import { ensureAppDirectories } from './src/utils.js'; 
 
 dotenv.config();
 
@@ -30,6 +31,9 @@ console.log('* Explorer Application Queue API');
 console.log('* Version: 3.0. MIT License');
 console.log('* University of Victoria (c) 2025');
 console.log('Starting MLE Queue API server...');
+
+// Ensure all specified application directories exist
+ensureAppDirectories();
 
 // Initialize the Bull queue
 // Ensure robust Redis connection settings for Bull
@@ -97,7 +101,7 @@ app.post('/jobs/process', async (req, res) => {
         }
 
         // Add job to the Bull queue
-        const job = await queue.add('process_image_file', jobData, {
+        const job = await queue.add(jobData, {
             attempts: 3, // Retry up to 3 times on failure
             backoff: {
                 type: 'exponential',
@@ -118,6 +122,134 @@ app.post('/jobs/process', async (req, res) => {
     } catch (error) {
         console.error(' - [ERROR] Failed to add job to queue:', error);
         res.status(500).json({ success: false, message: 'Failed to queue job', details: error.message });
+    }
+});
+
+/**
+ * Endpoint to retry a specific failed queue job by its ID.
+ * Uses a POST request as this is a state-changing action.
+ */
+app.post('/jobs/retry/:id', async (req, res) => {
+    console.log(`[RETRY] Attempting to retry job ID: ${req.params.id}`);
+    const jobId = req.params.id;
+
+    if (!jobId) {
+        return res.status(400).json({
+            success: false,
+            message: 'Job ID is required to retry a job.'
+        });
+    }
+
+    try {
+        const job = await queue.getJob(jobId);
+
+        if (!job) {
+            console.warn(`[RETRY] Job ID ${jobId} not found in queue.`);
+            return res.status(404).json({
+                success: false,
+                message: `Job ID ${jobId} not found.`
+            });
+        }
+
+        const jobState = await job.getState();
+        console.log(`[RETRY] Attempting to retry job ID ${jobId}. Current state: ${jobState}`);
+
+        // Only retry if the job is in a 'failed' state.
+        // You might extend this to include 'stalled' or 'completed' if you have specific needs.
+        if (jobState === 'failed') {
+            await job.retry(); // Bull's built-in method to retry a job
+            console.log(`[RETRY] Job ID ${jobId} successfully retried.`);
+
+            return res.status(200).json({
+                success: true,
+                message: `Job ID ${jobId} has been submitted for retry.`,
+                jobId: job.id,
+                newState: 'waiting' // Or 'delayed' if it has a backoff strategy
+            });
+        } else if (jobState === 'completed') {
+            console.warn(`[RETRY] Job ID ${jobId} is already completed. Not retrying.`);
+            return res.status(409).json({ // 409 Conflict
+                success: false,
+                message: `Job ID ${jobId} is already completed and cannot be retried.`,
+                jobId: job.id,
+                currentState: jobState
+            });
+        } else if (jobState === 'active' || jobState === 'waiting' || jobState === 'delayed') {
+            console.warn(`[RETRY] Job ID ${jobId} is in state '${jobState}'. Not retrying as it's not failed.`);
+            return res.status(409).json({ // 409 Conflict
+                success: false,
+                message: `Job ID ${jobId} is currently in state '${jobState}' and cannot be retried directly.`,
+                jobId: job.id,
+                currentState: jobState
+            });
+        }
+        else {
+             // Handle other states if necessary, or simply do nothing 
+            console.warn(`[RETRY] Job ID ${jobId} is in unexpected state '${jobState}'. Not retrying.`);
+            return res.status(409).json({ // 409 Conflict
+                success: false,
+                message: `Job ID ${jobId} is in state '${jobState}' and cannot be retried.`,
+                jobId: job.id,
+                currentState: jobState
+            });
+        }
+
+    } catch (error) {
+        console.error(`[ERROR] Failed to retry job ID ${jobId}:`, error);
+        res.status(500).json({
+            success: false,
+            message: `Failed to retry job ID ${jobId}`,
+            details: error.message
+        });
+    }
+});
+
+/**
+ * Endpoint to delete a specific queue job by its ID.
+ * Uses a DELETE request as this is a destructive action.
+ */
+app.delete('/jobs/delete/:id', async (req, res) => {
+    console.log(`[DELETE] Attempting to delete job ID: ${req.params.id}`);
+    const jobId = req.params.id;
+
+    if (!jobId) {
+        return res.status(400).json({
+            success: false,
+            message: 'Job ID is required to delete a job.'
+        });
+    }
+
+    try {
+        const job = await queue.getJob(jobId);
+
+        if (!job) {
+            console.warn(`[DELETE] Job ID ${jobId} not found in queue.`);
+            return res.status(404).json({
+                success: false,
+                message: `Job ID ${jobId} not found.`
+            });
+        }
+
+        const jobState = await job.getState();
+        console.log(`[DELETE] Job ID ${jobId} current state: ${jobState}`);
+
+        await job.remove(); // Bull's built-in method to remove a job from the queue
+        console.log(`[DELETE] Job ID ${jobId} successfully deleted from the queue.`);
+
+        return res.status(200).json({
+            success: true,
+            message: `Job ID ${jobId} was deleted from the queue.`,
+            jobId: job.id,
+            previousState: jobState
+        });
+
+    } catch (error) {
+        console.error(`[ERROR] Failed to delete job ID ${jobId}:`, error);
+        res.status(500).json({
+            success: false,
+            message: `Failed to delete job ID ${jobId}`,
+            details: error.message
+        });
     }
 });
 
@@ -188,89 +320,7 @@ app.get('/queue/status', async (_, res) => {
     }
 });
 
-
-// Add this route to your server.js file, perhaps near your other job-related endpoints.
-// Make sure it's after `const queue = new Bull(...)` initialization.
-
-/**
- * Endpoint to retry a specific failed queue job by its ID.
- * Uses a POST request as this is a state-changing action.
- */
-app.post('/jobs/retry/:id', async (req, res) => {
-    const jobId = req.params.id;
-
-    if (!jobId) {
-        return res.status(400).json({
-            success: false,
-            message: 'Job ID is required to retry a job.'
-        });
-    }
-
-    try {
-        const job = await queue.getJob(jobId);
-
-        if (!job) {
-            console.warn(`[RETRY] Job ID ${jobId} not found in queue.`);
-            return res.status(404).json({
-                success: false,
-                message: `Job ID ${jobId} not found.`
-            });
-        }
-
-        const jobState = await job.getState();
-        console.log(`[RETRY] Attempting to retry job ID ${jobId}. Current state: ${jobState}`);
-
-        // Only retry if the job is in a 'failed' state.
-        // You might extend this to include 'stalled' or 'completed' if you have specific needs.
-        if (jobState === 'failed') {
-            await job.retry(); // Bull's built-in method to retry a job
-            console.log(`[RETRY] Job ID ${jobId} successfully retried.`);
-
-            return res.status(200).json({
-                success: true,
-                message: `Job ID ${jobId} has been submitted for retry.`,
-                jobId: job.id,
-                newState: 'waiting' // Or 'delayed' if it has a backoff strategy
-            });
-        } else if (jobState === 'completed') {
-            console.warn(`[RETRY] Job ID ${jobId} is already completed. Not retrying.`);
-            return res.status(409).json({ // 409 Conflict
-                success: false,
-                message: `Job ID ${jobId} is already completed and cannot be retried.`,
-                jobId: job.id,
-                currentState: jobState
-            });
-        } else if (jobState === 'active' || jobState === 'waiting' || jobState === 'delayed') {
-            console.warn(`[RETRY] Job ID ${jobId} is in state '${jobState}'. Not retrying as it's not failed.`);
-            return res.status(409).json({ // 409 Conflict
-                success: false,
-                message: `Job ID ${jobId} is currently in state '${jobState}' and cannot be retried directly.`,
-                jobId: job.id,
-                currentState: jobState
-            });
-        }
-        else {
-             // Handle other states if necessary, or simply do nothing
-            console.warn(`[RETRY] Job ID ${jobId} is in unexpected state '${jobState}'. Not retrying.`);
-            return res.status(409).json({ // 409 Conflict
-                success: false,
-                message: `Job ID ${jobId} is in state '${jobState}' and cannot be retried.`,
-                jobId: job.id,
-                currentState: jobState
-            });
-        }
-
-    } catch (error) {
-        console.error(`[ERROR] Failed to retry job ID ${jobId}:`, error);
-        res.status(500).json({
-            success: false,
-            message: `Failed to retry job ID ${jobId}`,
-            details: error.message
-        });
-    }
-});
-
-app.listen(appPort, appHost, () => { // Specify host for listen
+app.listen(appPort, appHost, () => {
     console.log(`Queue API listening on ${appHost}:${appPort}`);
     console.log(' - Garbage Collection is', !!global.gc ? 'available.' : 'not available.');
 });

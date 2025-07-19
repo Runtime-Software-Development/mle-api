@@ -9,12 +9,9 @@
 'use strict'; 
 
 import path from 'path';
-import { uploadImage } from './services.js'; // Assuming this is an async function
-import { copyFile } from './utils.js';     // Assuming this is an async function
-
-// Configuration constants from environment variables
-const TMP_DIR = process.env.MLE_TMP_DIR || '/mle/files/tmp';
-const UPLOAD_DIR = process.env.MLE_UPLOAD_DIR || '/mle/files/uploads';
+import { uploadImage } from './services.js';
+import { copyFile } from './utils.js';  
+import fs from 'fs';
 
 /**
  * Asynchronously processes a job based on the file type to upload the file.
@@ -119,6 +116,7 @@ export const processJob = async (job) => {
             throw new Error(`[ERROR] Job ${job?.id} missing critical metadata to complete.`);
         }
 
+        // Set process type by file type
         const processType = process_type;
         let result;
 
@@ -127,8 +125,30 @@ export const processJob = async (job) => {
 
         console.log(`[WORKER] Processing JOB ${job.id} / TYPE ${processType}`);
 
+        if (!fs.existsSync(process.env.MLE_TMP_DIR)) {
+            throw new Error('Temporary file storage directory does not exist');
+        }
+
+        // Ensure the upload and low resolution images directory exists
+        if (!fs.existsSync(process.env.MLE_UPLOAD_DIR)) {
+            throw new Error('Upload directory does not exist');
+        }
+
+        if (!fs.existsSync(process.env.MLE_LOWRES_DIR)) {
+            throw new Error('Low resolutuion images directory does not exist');
+        }
+
+        // Ensure file upload path exists (or create it if it doesn't)
+        const fullPath = path.join(process.env.MLE_UPLOAD_DIR, path.dirname(file?.fs_path));
+        if (!fs.existsSync(fullPath)) {
+            fs.mkdirSync(fullPath, { recursive: true });
+            console.log(`Created upload directory ${fullPath}: ${fs.existsSync(process.env.MLE_UPLOAD_DIR, path.dirname(file?.fs_path))}`);
+        }
+
         switch (processType) {
-            case 'process_image_file':
+            case 'supplemental_images':
+            case 'historic_images':
+            case 'modern_images':
                 // Assuming uploadImage is an async function that handles its own errors or throws them
                 result = await uploadImage(file, file_model, owner);
                 console.log(`[WORKER] Image upload for job ${job.id} completed. Result:`, result);
@@ -136,8 +156,8 @@ export const processJob = async (job) => {
                 console.log("Job data for uploadImage:", { file: file.filename, file_model: file_model.image_state, owner: owner.owner_id });
                 break;
             default:
-                const srcPath = path.join(TMP_DIR, file?.filename_tmp);
-                const dstPath = path.join(UPLOAD_DIR, file?.fs_path);
+                const srcPath = path.join(process.env.MLE_TMP_DIR, file?.filename_tmp);
+                const dstPath = path.join(process.env.MLE_UPLOAD_DIR, file?.fs_path);
                 console.log(`[WORKER] Copying file source ${srcPath} to ${dstPath}`);
                 // Assuming copyFile is an async function that handles its own errors or throws them
                 result = await copyFile(srcPath, dstPath);
