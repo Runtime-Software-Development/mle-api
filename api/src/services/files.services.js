@@ -43,6 +43,13 @@ const MAX_FILE_SIZE = 1e9;
 
 const captureImageTypes = ['historic_images', 'modern_images'];
 
+// Available image version sizes
+export const imageSizes = {
+    thumb: 150,
+    medium: 900,
+    large: 1500,
+};
+
 /**
  * Get file record by ID. NOTE: returns single object.
  *
@@ -741,13 +748,16 @@ export const remove = async (fileItem = null, client) => {
     const { file = null, url = null } = fileItem || {};
     const { id = '', fs_path = '' } = file || {};
 
+    console.log('Attempting to remove file', file, url, id, fs_path);
+
     // create filepath array (include original or raw file)
     let filePaths = [path.join(process.env.MLE_UPLOAD_DIR, fs_path)];
 
-    // include any image resampled versions (if applicable)
+    // delete any resampled image versions (if applicable)
     if (url) {
         Object.keys(url).reduce((o, key) => {
             const filename = url[key].pathname.replace(/^.*[\\\/]/, '');
+            console.log(path.join(process.env.MLE_LOWRES_PATH, filename))
             o.push(path.join(process.env.MLE_LOWRES_PATH, filename));
             return o;
         }, filePaths)

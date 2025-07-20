@@ -28,9 +28,8 @@ import * as nserve from '../services/nodes.services.js';
 import * as cserve from "../services/construct.services.js";
 import {prepare} from '../lib/api.utils.js';
 import pool from '../services/db.services.js';
-import {humanize, sanitize} from '../lib/data.utils.js';
+import {sanitize} from '../lib/data.utils.js';
 import * as importer from '../services/import.services.js';
-import {getImageURL} from "../services/images.services.js";
 
 /**
  * Export controller constructor.
@@ -221,7 +220,7 @@ export default function FilesController(fileModelType) {
                     const {results} = await fserve.filterFilesByID([id], file_type, 0, 100);
                     const rs = results[0];
                     // include image urls
-                    rs.url = getImageURL(file_type, rs);
+                    rs.url = fserve.getImageURL(file_type, rs);
                     return rs;
             }));
 

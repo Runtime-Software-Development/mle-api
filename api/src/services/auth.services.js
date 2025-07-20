@@ -253,7 +253,8 @@ export const authorize = async (req, res, allowedRoles) => {
     const roleData = await getRoleData();
     const role = roles.length > 0 ? roleData.find(r => r.name === roles[0])  : 'Administrator';
 
-    console.log('User roles:', roles, 'Role:', role);
+    // Debug
+    // console.log('User roles:', roles, 'Role:', role);
 
     // compose user data
     return {
