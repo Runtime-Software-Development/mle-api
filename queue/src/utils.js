@@ -114,7 +114,7 @@ export function sanitize(data, datatype) {
 
 export const getImageURL = (type = '', data = {}) => {
     const secure_token = data.getValue('secure_token') || '';
-    const rootURI = `${process.env.MLE_API_HOST}/uploads/`;
+    const rootURI = `${process.env.MLE_API_BASEURL}/uploads/`;
 
     const imgSrc = (token) => {
         return Object.keys(imageSizes).reduce((o, key) => {
