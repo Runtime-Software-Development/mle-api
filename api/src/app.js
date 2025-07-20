@@ -217,7 +217,8 @@ export default async () => {
      * Serve static files.
      */
 
-    app.use(st({ path: process.env.MLE_LOWRES_DIR, url: '/uploads' }));
+    const mount = st({ path: process.env.MLE_LOWRES_DIR, url: '/uploads' })
+    app.use(mount);
 
     /**
      * Set default global error handlers.
