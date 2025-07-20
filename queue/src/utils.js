@@ -114,7 +114,7 @@ export function sanitize(data, datatype) {
 
 export const getImageURL = (type = '', data = {}) => {
     const secure_token = data.getValue('secure_token') || '';
-    const rootURI = `${process.env.API_HOST}/uploads/`;
+    const rootURI = `${process.env.MLE_API_HOST}/uploads/`;
 
     const imgSrc = (token) => {
         return Object.keys(imageSizes).reduce((o, key) => {
@@ -278,8 +278,8 @@ export const getFilePath = (file, version = 'medium') => {
 
 export const listFiles = (localPath, done = () => { }) => {
     // get root directories
-    const lowResPath = process.env.LOWRES_PATH;
-    const defaultPath = process.env.UPLOAD_DIR;
+    const lowResPath = process.env.MLE_LOWRES_PATH;
+    const defaultPath = process.env.MLE_UPLOAD_DIR;
     // joining path of local directory to root path
     const dir = path.join(defaultPath, localPath);
 
