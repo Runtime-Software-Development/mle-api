@@ -235,7 +235,7 @@ export const extractImageInfo = async (file, file_model) => {
 export const getFilePath = (file, version = 'medium') => {
 
     const { fs_path = '', secure_token = '', file_type = '' } = file || {};
-    const lowResPath = process.env.MLE_LOWRES_PATH;
+    const lowResPath = process.env.MLE_LOWRES_DIR;
     const defaultPath = process.env.MLE_UPLOAD_DIR;
 
     // handle image source URLs differently than metadata files
@@ -278,7 +278,7 @@ export const getFilePath = (file, version = 'medium') => {
 
 export const listFiles = (localPath, done = () => { }) => {
     // get root directories
-    const lowResPath = process.env.MLE_LOWRES_PATH;
+    const lowResPath = process.env.MLE_LOWRES_DIR;
     const defaultPath = process.env.MLE_UPLOAD_DIR;
     // joining path of local directory to root path
     const dir = path.join(defaultPath, localPath);

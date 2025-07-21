@@ -295,7 +295,7 @@ export default function ComparisonController() {
 
         try {
 
-            // // receive and parse multi-part files and fields from request
+            // receive and parse multi-part files and fields from request
             const importedData = await importer.receive(req, nodeType);
 
             // extract capture data

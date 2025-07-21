@@ -96,10 +96,10 @@ The `mlpapi` service uses an `.env` file for environment variables, including da
 | `MLE_REDIS_HOST`     | `127.0.0.1`   | The hostname or IP address of the Redis server. |
 | `MLE_REDIS_PORT`     | `6379`        | The port of the Redis server. |
 | `POSTGRES_INITDB_ARGS` | `--auth-host=scram-sha-256` | Arguments passed to `initdb` when initializing the PostgreSQL database. |
-| `MLE_UPLOAD_DIR`     | `/Users/boutrous/Workspace/MLE/mle-data/uploads` | Local path for uploaded original files. |
-| `MLE_TMP_DIR`        | `/Users/boutrous/Workspace/MLE/mle-data/tmp` | Local path for temporary files during processing. |
-| `MLE_LOWRES_DIR`     | `/Users/boutrous/Workspace/MLE/mle-data/versions` | Local path for processed low-resolution image versions. |
-| `MLE_ROOT_DIR`       | `/Users/boutrous/Workspace/MLE/mle-data/mle-queue` | Root directory for application-related data, specifically for the queue. |
+| `MLE_UPLOAD_DIR`     | `/MLE/mle-data/uploads` | Local path for uploaded original files. |
+| `MLE_TMP_DIR`        | `/MLE/mle-data/tmp` | Local path for temporary files during processing. |
+| `MLE_LOWRES_DIR`     | `/MLE/mle-data/versions` | Local path for processed low-resolution image versions. |
+| `MLE_ROOT_DIR`       | `/MLE/mle-data/mle-queue` | Root directory for application-related data, specifically for the queue. |
 
 
 #### Build and Run the Services

@@ -111,8 +111,7 @@ export default async () => {
         process.env.MLE_API_BASEURL,
         process.env.MLE_APP_BASEURL,
         `${process.env.MLE_QUEUE_HOST}:${process.env.MLE_QUEUE_PORT}`,
-        process.env.MLE_KC_CLIENT_HOST,
-        process.env.MLE_KC_SERVER_HOST
+        process.env.MLE_KC_SERVER_URL
     ];
     // console.log(`Allowed origins: \n\t${allowedOrigins.join('\n\t')}`);
 

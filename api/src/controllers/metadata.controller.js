@@ -198,16 +198,13 @@ export default function MetadataController(metadataType) {
             const ownerID = this.getOwnerId(req);
 
             // get owner data from parameters
+            // Note that options do not have owner data
             let ownerData = null;
             if (ownerID) {
                 // get owner metadata record (if exists)
                 ownerData = await nserve.select(ownerID, client);
                 // check owner exists
                 if (!ownerData) return next(new Error('invalidRequest'));
-            }
-            else {
-                next(new Error('invalidRequest'));
-                return;
             }
 
             // receive and parse multi-part files and fields from request

@@ -91,13 +91,13 @@ export default function ModelController(nodeType) {
         try {
             // generate all model constructors
             constructors = await cserve.getConstructors();
-            // create new model for given node type          
+            // create new model for given node type      
             modelTemplate = new constructors[nodeType]();
             mserve = new ModelServices(modelTemplate);
         }
         catch (err) {
             console.error(err);
-            throw new Error('invalidModel');;
+            throw new Error('invalidModel');
         }
     }
 
@@ -461,8 +461,8 @@ export default function ModelController(nodeType) {
             }
 
             // create model instance and inject data (update new owner)
-            const { metadata = {} } = itemData || {};
-            const item = new Model(metadata);
+            const item = modelTemplate.setData(itemData?.metadata);
+            console.log(item);
 
             // move item and dependents to new owner
             const result = await mserve.move(item, ownerData, client);

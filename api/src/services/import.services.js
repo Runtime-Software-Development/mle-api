@@ -220,6 +220,7 @@ export const onFile = (name, file, info, files, abort) => {
         // insert token into tmp filename
         const filename_tmp = [
             safeFilename.slice(0, safeFilename.lastIndexOf('.')),
+            '_',
             secure_token,
             safeFilename.slice(safeFilename.lastIndexOf('.'))
         ].join('');

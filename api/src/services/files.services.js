@@ -329,7 +329,7 @@ export const selectByFile = async (file, client) => {
 
 export const listFiles = (localPath, done = () => { }) => {
     // get root directories
-    const lowResPath = process.env.MLE_LOWRES_PATH;
+    const lowResPath = process.env.MLE_LOWRES_DIR;
     const defaultPath = process.env.MLE_UPLOAD_DIR;
     // joining path of local directory to root path
     const dir = path.join(defaultPath, localPath);
@@ -622,7 +622,7 @@ export const compress = async (files = {}, version) => {
 export const getFilePath = (file, version = 'medium') => {
 
     const { fs_path = '', secure_token = '', file_type = '' } = file || {};
-    const lowResPath = process.env.MLE_LOWRES_PATH;
+    const lowResPath = process.env.MLE_LOWRES_DIR;
     const defaultPath = process.env.MLE_UPLOAD_DIR;
 
     // handle image source URLs differently than metadata files
@@ -748,17 +748,15 @@ export const remove = async (fileItem = null, client) => {
     const { file = null, url = null } = fileItem || {};
     const { id = '', fs_path = '' } = file || {};
 
-    console.log('Attempting to remove file', file, url, id, fs_path);
-
     // create filepath array (include original or raw file)
     let filePaths = [path.join(process.env.MLE_UPLOAD_DIR, fs_path)];
 
     // delete any resampled image versions (if applicable)
     if (url) {
         Object.keys(url).reduce((o, key) => {
-            const filename = url[key].pathname.replace(/^.*[\\\/]/, '');
-            console.log(path.join(process.env.MLE_LOWRES_PATH, filename))
-            o.push(path.join(process.env.MLE_LOWRES_PATH, filename));
+            const filename = url[key].pathname.split('/').pop();
+            console.log(url[key], process.env.MLE_LOWRES_DIR, filename)
+            o.push(path.join(process.env.MLE_LOWRES_DIR, filename));
             return o;
         }, filePaths)
     }
@@ -803,17 +801,39 @@ export const deleteFiles = async (filePaths = []) => {
     );
 };
 
-/**
- * Stream archive data to response
- *
- * @return Response data
- * @public
- * @param {Response} res
- * @param {Object} files
- * @param {String} version
- * @param metadata
- */
 
+
+/**
+ * Generates a unique filename within a given set of existing filenames.
+ * If the original filename is not present in the set, it is returned as is.
+ * If the original filename is present, a counter is appended to the filename
+ * in parentheses, and the counter is incremented until the filename is not
+ * present in the set.
+ * @param {String} originalFilename - The original filename to check
+ * @param {Set<String>} existingArchiveFilenames - Set of existing filenames
+ * @return {String} A unique filename
+ */
+function getUniqueFilename(originalFilename, existingArchiveFilenames) {
+    let newFilename = originalFilename;
+    let counter = 1;
+    const { name, ext } = path.parse(originalFilename);
+
+    while (existingArchiveFilenames.has(newFilename)) {
+        newFilename = `${name} (${counter})${ext}`;
+        counter++;
+    }
+    return newFilename;
+}
+
+    /**
+     * Stream a zip archive containing all requested files to the response object.
+     * Files are separated into subfolders based on their type.
+     * @param {Response} res - Express response object
+     * @param {Object} files - Files to include in the archive, keyed by file type
+     * @param {String} version - Optional version string to append to file paths
+     * @param {Object} metadata - Optional metadata object to include in the archive
+     * @return {Promise<archiver.Archiver>}
+     */
 export const streamArchive = async (res, files = {}, version, metadata = {}) => {
 
     res.on('error', function (err) {
@@ -821,68 +841,72 @@ export const streamArchive = async (res, files = {}, version, metadata = {}) => 
         res.status(404).end();
     });
 
-    // create an archive
+    // Create an archive
     const archive = archiver('zip', {
         zlib: { level: 9 } // Sets the compression level.
     });
 
-    // listen for all archive data to be written
-    // 'close' event is fired only when a file descriptor is involved
+    // Listen for all archive data to be written
     res.on('close', function () {
         console.log(archive.pointer() + ' total bytes');
-        console.log('archiver has been finalized and the output file descriptor has closed.');
+        console.log('Archiver has been finalized and the output file descriptor has closed.');
     });
 
-    // This event is fired when the data source is drained no matter what was the data source.
-    // It is not part of this library but rather from the NodeJS Stream API.
-    // @see: https://nodejs.org/api/stream.html#stream_event_end
     res.on('end', function () {
         console.log('Data has been drained');
     });
 
-    // good practice to catch warnings (ie stat failures and other non-blocking errors)
     archive.on('warning', function (err) {
         if (err.code === 'ENOENT') {
-            // log warning
+            console.warn('Archiver warning (ENOENT):', err.message); // Log the warning
         } else {
-            // throw error
             throw err;
         }
     });
 
-    // good practice to catch this error explicitly
     archive.on('error', function (err) {
         throw err;
     });
 
-    // pipe data to response
+    // Pipe data to response
     archive.pipe(res);
 
-    // add requested files to archive; separate different file types in folders
+    // This Set will store all unique paths (including subfolders) that have been added to the archive.
+    const archiveEntryPaths = new Set();
+
+    // Add requested files to archive; separate different file types in folders
     await Promise.all(
         Object.keys(files).map(async (fileType) => {
             await Promise.all(
-                files[fileType].map(async (file, index) => {
-                    // get file path for given version type
+                files[fileType].map(async (file) => { // Removed 'index' as it's not used
+                    // Get file path for given version type
                     const filePath = getFilePath(file, version);
-                    const { filename = `` } = file || {};
-                    // places file in a subfolder labelled by image/file type
-                    // - only include files that exist
+                    const { filename: originalFilename = `` } = file || {}; // Renamed to originalFilename for clarity
+
+                    // Only include files that exist
                     if (fs.existsSync(filePath)) {
-                        // append a file
-                        archive.file(filePath, { name: path.join(fileType, filename) });
+                        // Determine the base filename for the entry
+                        // We need to ensure uniqueness within the *archive path*,
+                        // which includes the fileType subfolder.
+                        const baseFilename = getUniqueFilename(originalFilename, archiveEntryPaths);
+                        const archiveEntryPath = path.join(fileType, baseFilename);
+
+                        // Add the full archive entry path to our set to track uniqueness
+                        archiveEntryPaths.add(archiveEntryPath);
+
+                        // Append the file to the archive with the unique path
+                        archive.file(filePath, { name: archiveEntryPath });
+                    } else {
+                        console.warn(`File not found: ${filePath} for original filename ${originalFilename}. Skipping.`);
                     }
                 })
-            )
-        }
-        )
+            );
+        })
     );
 
-    // finalize the archive (ie we are done appending files but streams have to finish yet)
-    // 'close', 'end' or 'finish' may be fired right after calling this method so register to them beforehand
+    // Finalize the archive
     await archive.finalize();
 
-    // return archive
     return archive;
 };
 
@@ -916,16 +940,17 @@ export const streamDownload = (res, buffer) => {
 }
 
 /**
- * Bulk download files
+ * Bulk download files from database.
  *
  * @public
- * @param req
- * @param res
- * @param next
- * @param version
- * @param client
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ * @param {Function} next - Express error handler
+ * @param {String} version - Optional image version string
+ * @param {Object} client - PostgreSQL client object
+ *
+ * @return {Promise} result
  */
-
 export const bulkDownload = async (req, res, next, version, client) => {
 
     const offset = 0;
@@ -975,31 +1000,31 @@ export const bulkDownload = async (req, res, next, version, client) => {
 
     // sanitize + convert query string to node id array
     const historicFileIDs = historic_images
-        .split(' ')
+        .split(/[ +]/)
         .map(id => {
             return sanitize(id, 'integer');
         });
 
     const modernFileIDs = modern_images
-        .split(' ')
+        .split(/[ +]/)
         .map(id => {
             return sanitize(id, 'integer');
         });
 
     const unsortedFileIDs = unsorted_images
-        .split(' ')
+        .split(/[ +]/)
         .map(id => {
             return sanitize(id, 'integer');
         });
 
     const metadataFileIDs = metadata_files
-        .split(' ')
+        .split(/[ +]/)
         .map(id => {
             return sanitize(id, 'integer');
         });
 
     const supplementalFileIDs = supplemental_images
-        .split(' ')
+        .split(/[ +]/)
         .map(id => {
             return sanitize(id, 'integer');
         });
