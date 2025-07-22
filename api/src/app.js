@@ -215,7 +215,7 @@ export default async () => {
     /**
      * Serve static files.
      */
-
+    console.log('MLE_LOWRES_DIR:', process.env.MLE_LOWRES_DIR);
     const mount = st({ path: process.env.MLE_LOWRES_DIR, url: '/uploads' })
     app.use(mount);
 
