@@ -311,3 +311,38 @@ export const refresh = async (req) => {
     return data;
 
 }
+
+
+/**
+ * Checks the health of Keycloak by hitting its /health/ready endpoint.
+ * @returns {Promise<string>} 'healthy', 'unhealthy', or 'unreachable'
+ */
+export async function checkKeycloakHealth() {
+    const KEYCLOAK_URL = process.env.MLE_KC_SERVER_URL || 'http://keycloak_server:8081';
+    const KEYCLOAK_HEALTH_PATH = '/health/ready'; // Keycloak's readiness endpoint
+    const FETCH_TIMEOUT_MS = 5000; // 5 seconds timeout
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+        const response = await fetch(`${KEYCLOAK_URL}${KEYCLOAK_HEALTH_PATH}`, { signal: controller.signal });
+
+        clearTimeout(timeoutId); // Clear the timeout if the request completes in time
+
+        if (response.ok) { // response.ok is true for 2xx status codes
+            return 'healthy';
+        } else {
+            const errorText = await response.text();
+            console.warn(`[Health Check] Keycloak returned non-200 status: ${response.status}. Response: ${errorText}`);
+            return 'unhealthy';
+        }
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.error(`[Health Check] Timeout connecting to Keycloak: ${error.message}`);
+        } else {
+            console.error(`[Health Check] Network error connecting to Keycloak: ${error.message}`);
+        }
+        return 'unreachable';
+    }
+}
