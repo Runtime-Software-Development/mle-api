@@ -207,17 +207,19 @@ export default async () => {
     app.get('/favicon.ico', (_, res) => res.status(204).send());
 
     /**
-     * Initialize router asynchronously.
-     */
-
-    app.use('/', router());
-
-    /**
      * Serve static files.
      */
 
     const mount = st({ path: process.env.MLE_LOWRES_DIR, url: '/uploads' })
     app.use(mount);
+
+    /**
+     * Initialize router asynchronously.
+     */
+
+    app.use('/', await router());
+
+
 
     /**
      * Set default global error handlers.
