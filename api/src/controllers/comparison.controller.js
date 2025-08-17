@@ -299,7 +299,7 @@ export default function ComparisonController() {
             const importedData = await importer.receive(req, nodeType);
 
             // extract capture data
-            const { files={} } = importedData || {};
+            const { files=[] } = importedData || {};
             const { historic_capture=null, modern_capture=null } = importedData?.indexedMetadata || {};
 
             // [1] handle historic image

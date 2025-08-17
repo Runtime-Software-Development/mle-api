@@ -118,7 +118,8 @@ const makeServiceRequest = async (url, method = 'GET', data = null) => {
         // Add fields
         // Note: FormData accepts only three types of elements viz. string, Buffer and Stream
         for (const [key, value] of Object.entries(data)) {
-            console.log('FormData:', key, value);
+            // DEBUG
+            // console.log('FormData:', key, value);
             formData.append(key, String(value));
         }
 

@@ -36,7 +36,6 @@ import { genUUID } from '../lib/data.utils.js';
 import fs from 'fs';
 import path from 'path';
 import { getConstructors } from './construct.services.js';
-import { model } from './index.services.js';
 
 /**
  * Promisified version of the busboy file upload handler.
@@ -95,7 +94,7 @@ function promisifyBusboy(req, modelType, ownerData, constructors) {
                     metadata.owner_id = ownerData?.id;
                 }
 
-                console.log(`Processing import for model ${modelType}`, ownerData);
+                console.log(`Processing import for model ${modelType}`);
 
                 // return parsed data
                 const result = {
@@ -121,8 +120,6 @@ function promisifyBusboy(req, modelType, ownerData, constructors) {
                             file.owner_id = ownerData?.id;
                         }
 
-                        console.log(`Processing file: ${file?.filename} of type ${file_type} for file model ${modelType}`);
-
                         // insert token into filename
                         const tokenizedFilename = [
                             file?.filename.slice(0, file?.filename.lastIndexOf('.')),
@@ -143,9 +140,16 @@ function promisifyBusboy(req, modelType, ownerData, constructors) {
                             tokenizedFilename
                         );
 
+                        console.log(`Importing file: ${file?.filename} of type ${file_type} for file model ${modelType}`);
+
+                        // Note that fileModelData may be incomplete at this stage
+                        // - additional metadata may be added later during processing
+                        // - e.g., setting owner_id after model instance is created
+                        //   or setting file size after file is moved to permanent storage
+                        // Also note that file data is not in a model instance yet
                         return {
-                            file: new constructors['files'](file),
-                            file_model: new constructors[file_type]({ ...fileModelData, ...metadata }),
+                            file: file,
+                            file_model: fileModelData,
                             file_type,
                             encoding
                         };
@@ -230,30 +234,39 @@ export const onFile = (name, file, info, files, abort) => {
 
         // Create a readable stream for the file
         let fileSize = 0;
-        file.on('data', (data) => {
-            if (data.length === 0) {
+        file.on('data', (chunk) => {
+            if (chunk?.length === 0) {
                 abort(new Error('invalidRequest'));
             }
-            fileSize += data.length;
+            fileSize += chunk.length;
         });
 
-        // Add the file to the files array
-        files.push({
-            index,
-            file: {
+        file.on('end', () => {
+            // The 'end' event signals the end of the file.
+            console.log(`File '${filename}' finished. Size: ${fileSize} bytes`);
+            // Add the file to the files array
+            files.push({
+                index,
+                file: {
+                    file_type: fileType,
+                    filename: safeFilename,
+                    mimetype: mimeType,
+                    owner_type: '',
+                    owner_id: '',
+                    fs_path: null,
+                    file_size: fileSize,
+                    filename_tmp: filename_tmp
+                },
+                secure_token,
                 file_type: fileType,
-                filename: safeFilename,
-                mimetype: mimeType,
-                owner_type: '',
-                owner_id: '',
-                fs_path: null,
-                file_size: fileSize,
-                filename_tmp: filename_tmp
-            },
-            secure_token,
-            file_type: fileType,
-            encoding
+                encoding
+            });
         });
+
+        file.on('error', (err) => {
+            console.error(`Error processing file '${filename}':`, err);
+        });
+
     } catch (err) {
         abort(err);
     }

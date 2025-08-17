@@ -264,6 +264,7 @@ export default function FilesController(fileModelType) {
 
             // get the owner of the fileModel (e.g., historic captures are owners of historic images)
             let ownerData = null;
+            let filesResult = null;
             if (req?.params?.owner_id && fileModel.isRoot) return next(new Error('invalidRequest'));
             else if (req?.params?.owner_id) {
                 // Pass client for consistent connection
@@ -274,8 +275,24 @@ export default function FilesController(fileModelType) {
             // Receive and parse multi-part files and fields from form request data
             const {files, model, owner} = await importer.receive(req, fileModelType, ownerData);
 
-            // Save files and insert file metadata records
-            const filesResult = await fserve.upload(files, owner, client);
+            // Save files and insert file owner records
+            if ((files || []).length > 0) {
+                // update each item with owner data
+                await Promise.all(files.map( async(fileData) => {
+                    // create file model and file node constructors
+                    const fileConstructor = await cserve.create('files');
+                    const fileNode = new fileConstructor(fileData.file);
+                    const fileModelConstructor = await cserve.create(fileData.file_type);
+                    const fileModel = new fileModelConstructor(fileData.file_model);
+                    // console.log('Updating owner of file:', fileNode.getValue('filename') || 'Unknown');
+                    // overwrite file data with file node
+                    fileData.file = fileNode;
+                    // overwrite file data with file model
+                    fileData.file_model = fileModel;
+                }));
+                // Save files and insert file metadata records
+                filesResult = await fserve.upload(files, owner, client);
+            }
 
             // If all operations succeed, commit the transaction
             await client.query('COMMIT');

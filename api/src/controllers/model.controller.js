@@ -244,9 +244,7 @@ export default function ModelController(nodeType) {
             }
 
             // receive and parse multi-part files and fields from request
-            const {files, model } = await importer.receive(req, nodeType, ownerData);
-
-            console.log('Received files and metadata:', files, model );
+            const { files, model } = await importer.receive(req, nodeType, ownerData);
 
             // Insert new model instance
             const modelInstance = await mserve.insert(model, client);
@@ -255,12 +253,21 @@ export default function ModelController(nodeType) {
             // Save files and insert file owner records
             if ((files || []).length > 0) {
                 // update each item with owner data
-                files.forEach((fileData) => {
-                    fileData.file_model.setValue('owner_id', modelInstance.id);
-                    fileData.file.setValue('owner_id', modelInstance.id);
-                    fileData.file.setValue('owner_type', modelInstance.name);
-                });
-                console.log(`Files to upload: ${files}`, files);
+                await Promise.all(files.map( async(fileData) => {
+                    // create file model and file node constructors
+                    const fileConstructor = await cserve.create('files');
+                    const fileNode = new fileConstructor(fileData.file);
+                    const fileModelConstructor = await cserve.create(fileData.file_type);
+                    const fileModel = new fileModelConstructor(fileData.file_model);
+                    // set owner data for file model and file node
+                    fileModel.setValue('owner_id', modelInstance.id);
+                    fileNode.setValue('owner_id', modelInstance.id);
+                    fileNode.setValue('owner_type', modelInstance.name);
+                    // overwrite file data with file node
+                    fileData.file = fileNode;
+                    // overwrite file data with file model
+                    fileData.file_model = fileModel;
+                }));
                 filesResult = await fserve.upload(files, modelInstance, client); 
                 msg += ` Files submitted to queue for uploading. Refresh the page to see results.`
             }
@@ -462,7 +469,6 @@ export default function ModelController(nodeType) {
 
             // create model instance and inject data (update new owner)
             const item = modelTemplate.setData(itemData?.metadata);
-            console.log(item);
 
             // move item and dependents to new owner
             const result = await mserve.move(item, ownerData, client);

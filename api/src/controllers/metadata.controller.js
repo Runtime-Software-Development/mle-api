@@ -258,7 +258,6 @@ export default function MetadataController(metadataType) {
             // get owner node; check that node exists in database
             // and corresponds to requested owner type.
             const ownerData = await nserve.select(selectData?.owner_id, client);
-            console.log(ownerData);
             if (ownerData) {
                 ownerID = ownerData.id;
                 ownerType = ownerData.type;

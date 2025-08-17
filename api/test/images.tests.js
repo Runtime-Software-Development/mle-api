@@ -214,8 +214,6 @@ Object.keys(mockItems).forEach(modelName => {
          */
 
         mocha.it('Show item data', async () => {
-
-            console.log('!!!! ---> !!!', item)
             await server
                 .get(`${BASE_URL}${modelRoute}/${item.nodes_id}`)
                 .set('Accept', 'application/json')

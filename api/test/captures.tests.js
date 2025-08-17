@@ -128,8 +128,6 @@ Object.keys(mockItems).forEach(modelName => {
             Model = await db.model.create(modelTable);
             let model = new Model();
 
-            console.log(testItem)
-
             await server
                 .get(`${BASE_URL}${modelRoute}/${testItem.nodes_id}`)
                 .set('Accept', 'application/json')

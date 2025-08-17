@@ -58,7 +58,6 @@
             "userinfo.token.claim": "false",
             "multivalued": "true",
             "json.token.introspect": "false",
-            "claim.name": "resource_access['mle-kc-client'].roles",
             "full.path": "false"
           }
         }

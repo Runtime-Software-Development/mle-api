@@ -352,8 +352,6 @@ export const createNode = async function (item) {
     try {
         if (!item.nodeID) return null;
 
-        console.log('Creating node from item:', item.getData());
-
         // generate node constructor
         let Node = await create('nodes');
 

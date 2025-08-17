@@ -30,7 +30,7 @@ export const ensureDirectoryExists = (directoryPath) => {
             fs.mkdirSync(directoryPath, { recursive: true });
             console.log(`Created directory: ${directoryPath}`);
         } else {
-            console.log(`Directory already exists: ${directoryPath}`);
+            console.warn(`Directory already exists: ${directoryPath}`);
         }
     } catch (err) {
         console.error(`Error ensuring directory exists for ${directoryPath}:`, err);

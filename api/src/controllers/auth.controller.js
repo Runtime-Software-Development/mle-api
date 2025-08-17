@@ -117,7 +117,7 @@ export const login = async (req, res, next) => {
                     user: {
                         email: credentials.email,
                         role: data.roles,
-                        label: role.label || 'Registered'
+                        label: role?.label || 'Registered'
                     }})
             );
         })
@@ -218,7 +218,7 @@ export const refresh = async (req, res, next) => {
                     user: {
                         email: data.email,
                         role: data.roles,
-                        label: role.label,
+                        label: role?.label || 'Registered',
                         expiry: data.exp
                     }
                 })

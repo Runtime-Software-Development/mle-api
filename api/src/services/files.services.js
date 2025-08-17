@@ -343,7 +343,6 @@ export const listFiles = (localPath, done = () => { }) => {
             if (!file) return done(null, results);
             file = path.resolve(dir, file);
             fs.stat(file, function (err, stat) {
-                // console.log(stat)
                 if (stat && stat.isDirectory()) {
                     listFiles(file, function (err, res) {
                         results = results.concat(res);
@@ -408,8 +407,6 @@ export const upload = async (files, owner, client) => {
 
                 // save file metadata records
                 const result = await insert(file, file_model, client);
-
-                console.log('File insert result', result);
             
                 // Send job to the separate Queue Processor application
                 try {
@@ -755,7 +752,6 @@ export const remove = async (fileItem = null, client) => {
     if (url) {
         Object.keys(url).reduce((o, key) => {
             const filename = url[key].pathname.split('/').pop();
-            console.log(url[key], process.env.MLE_LOWRES_DIR, filename)
             o.push(path.join(process.env.MLE_LOWRES_DIR, filename));
             return o;
         }, filePaths)

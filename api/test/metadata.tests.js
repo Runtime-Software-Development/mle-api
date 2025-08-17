@@ -126,7 +126,6 @@ Object.keys(mockItems).forEach(modelName => {
             // generate model constructor
             Model = await db.model.create(modelTable);
             let model = new Model();
-            console.log('---->>', testItem)
 
             await server
                 .get(`${BASE_URL}${modelRoute}/${testItem.id}`)
@@ -196,8 +195,6 @@ Object.keys(mockItems).forEach(modelName => {
          */
 
         mocha.it('Show item data', async () => {
-
-            console.log('!!!! ---> !!!', item)
             await server
                 .get(`${BASE_URL}${modelRoute}/${item.id}`)
                 .set('Accept', 'application/json')

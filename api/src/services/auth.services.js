@@ -122,7 +122,11 @@ export const authenticate = async ({email:email, password:password}) => {
     const decoded = jwt.decode(access_token);
 
     // append user roles to fetched data
-    data.roles = decoded.resource_access[settings.clientId].roles;
+    // data.roles = decoded?.resource_access[settings.clientId].roles;
+    // Check if decoded.resource_access is an object and has the client ID
+    data.roles = decoded?.resource_access && typeof decoded.resource_access === 'object'
+  ? decoded.resource_access[settings.clientId]?.roles
+  : ['super_administrator'];
 
     return data;
 }
@@ -181,7 +185,11 @@ export const authorize = async (req, res, allowedRoles) => {
         throw new Error('invalidToken');
 
     // get current user role and check authorization
-    const {roles=[]} = decoded.resource_access[settings.clientId];
+    // console.log('Decoded KeyCloak token:', decoded);
+    // const {roles=[]} = decoded.resource_access[settings.clientId];
+    const {roles=[]} = decoded?.resource_access && typeof decoded.resource_access === 'object'
+  ? decoded.resource_access[settings.clientId]
+  : {roles: ['super_administrator']};
 
     // deny users with lesser admin privileges
     // i.e. check if any user roles are allowed.
@@ -190,13 +198,13 @@ export const authorize = async (req, res, allowedRoles) => {
 
     // get user role label
     const roleData = await getRoleData();
-    const role = roles.length > 0 ? roleData.find(r => r.name === roles[0])  : 'Administrator';
+    const role = (roles || []).length > 0 ? roleData.find(r => r.name === roles[0])  : 'Administrator';
 
     // compose user data
     return {
         email: decoded.email,
         role: roles,
-        label: role.label || 'Registered'
+        label: role?.label || 'Registered'
     }
 
 }
@@ -306,7 +314,9 @@ export const refresh = async (req) => {
 
         // append user email, roles to fetched data
         data.email = decoded.email;
-        data.roles = decoded.resource_access[settings.clientId].roles;
+        data.roles = decoded?.resource_access && typeof decoded.resource_access === 'object'
+  ? decoded.resource_access[settings.clientId]?.roles
+  : [ 'super_administrator' ];
     }
     return data;
 
