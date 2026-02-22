@@ -39,9 +39,8 @@ jobs:
       - name: Get chart name and version
         id: chart
         run: |
-          CHART_JSON=$(helm show chart ./helm -o json)
-          CHART_NAME=$(echo "$CHART_JSON" | jq -r '.name')
-          CHART_VERSION=$(echo "$CHART_JSON" | jq -r '.version')
+          CHART_NAME=$(grep '^name:' helm/Chart.yaml | sed 's/^name: *//' | tr -d ' "')
+          CHART_VERSION=$(grep '^version:' helm/Chart.yaml | sed 's/^version: *//' | tr -d ' "')
           echo "name=$CHART_NAME" >> "$GITHUB_OUTPUT"
           echo "version=$CHART_VERSION" >> "$GITHUB_OUTPUT"
           echo "Chart: $CHART_NAME $CHART_VERSION"
