@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - dev-kubernetes
     tags:
       - 'v*.*.*'
   workflow_dispatch:

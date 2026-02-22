@@ -2,7 +2,7 @@ name: Deploy MLE API via Helm
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev-kubernetes" ]
   workflow_dispatch:
 
 env:
