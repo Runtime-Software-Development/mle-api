@@ -8,6 +8,9 @@ on:
     branches:
       - main
       - dev-kubernetes
+    paths-ignore:
+      - 'helm/**'
+      - '.github/workflows/publish-api-chart.yaml'
     tags:
       - 'v*.*.*'
   workflow_dispatch:

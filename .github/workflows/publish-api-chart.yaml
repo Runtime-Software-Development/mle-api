@@ -55,14 +55,18 @@ jobs:
       - name: Push chart to GHCR (OCI)
         run: |
           PACKAGE="${{ steps.chart.outputs.name }}-${{ steps.chart.outputs.version }}.tgz"
-          OCI_REF="oci://ghcr.io/${{ github.repository_owner }}/${{ steps.chart.outputs.name }}"
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          CHART_NAME_LC=$(echo "${{ steps.chart.outputs.name }}" | tr '[:upper:]' '[:lower:]')
+          OCI_REF="oci://ghcr.io/${REPO_OWNER}/${CHART_NAME_LC}"
           echo "Pushing $PACKAGE to $OCI_REF"
           helm push "$PACKAGE" "$OCI_REF"
 
       - name: Summary
         run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          CHART_NAME_LC=$(echo "${{ steps.chart.outputs.name }}" | tr '[:upper:]' '[:lower:]')
           echo "## Helm chart published (OCI)" >> $GITHUB_STEP_SUMMARY
           echo "Install with:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "helm install myrelease oci://ghcr.io/${{ github.repository_owner }}/${{ steps.chart.outputs.name }} --version ${{ steps.chart.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "helm install myrelease oci://ghcr.io/${REPO_OWNER}/${CHART_NAME_LC} --version ${{ steps.chart.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
