@@ -1,0 +1,68 @@
+# Package the Helm chart as OCI artifact and push to GHCR.
+# Install with: helm install myrelease oci://ghcr.io/OWNER/mle-api --version VERSION
+
+name: Publish Helm Chart (OCI) to GHCR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'helm/**'
+      - '.github/workflows/publish-api-chart.yaml'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish Helm Chart to OCI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.16.0'
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username ${{ github.actor }} \
+            --password-stdin
+
+      - name: Get chart name and version
+        id: chart
+        run: |
+          CHART_JSON=$(helm show chart ./helm -o json)
+          CHART_NAME=$(echo "$CHART_JSON" | jq -r '.name')
+          CHART_VERSION=$(echo "$CHART_JSON" | jq -r '.version')
+          echo "name=$CHART_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$CHART_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Chart: $CHART_NAME $CHART_VERSION"
+
+      - name: Update Helm dependencies
+        run: helm dependency update ./helm
+        continue-on-error: true
+
+      - name: Package Helm chart
+        run: helm package ./helm
+
+      - name: Push chart to GHCR (OCI)
+        run: |
+          PACKAGE="${{ steps.chart.outputs.name }}-${{ steps.chart.outputs.version }}.tgz"
+          OCI_REF="oci://ghcr.io/${{ github.repository_owner }}/${{ steps.chart.outputs.name }}"
+          echo "Pushing $PACKAGE to $OCI_REF"
+          helm push "$PACKAGE" "$OCI_REF"
+
+      - name: Summary
+        run: |
+          echo "## Helm chart published (OCI)" >> $GITHUB_STEP_SUMMARY
+          echo "Install with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "helm install myrelease oci://ghcr.io/${{ github.repository_owner }}/${{ steps.chart.outputs.name }} --version ${{ steps.chart.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

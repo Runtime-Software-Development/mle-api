@@ -45,7 +45,7 @@ The `postgres` service is configured to initialize its database from a SQL backu
     mkdir -p db_init
     ```
 
-  * **Place your backup file:** Copy your PostgreSQL database backup file (e.g., `mlp_backup.sql`) into the newly created `db_init` directory.
+  * **Place database backup file:** Copy a MLE PostgreSQL database backup file (e.g., `.sql` init file) into the newly created `db_init` directory.
 
     ```bash
     cp /path/to/your/mlp_backup.sql db_init/

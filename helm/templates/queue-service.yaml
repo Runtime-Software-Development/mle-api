@@ -1,0 +1,17 @@
+{{- if .Values.queue.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "queue.fullname" . }}-svc
+  labels:
+    {{- include "queue.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.queue.service.type | default "ClusterIP" }}
+  ports:
+    - name: http
+      port: {{ .Values.queue.service.port }}
+      targetPort: {{ .Values.queue.service.port }}
+      protocol: TCP
+  selector:
+    {{- include "queue.selectorLabels" . | nindent 4 }}
+{{- end }}

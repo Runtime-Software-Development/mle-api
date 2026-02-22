@@ -1,0 +1,97 @@
+{{- if .Values.queue.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "queue.fullname" . }}
+  labels:
+    {{- include "queue.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.queue.autoscaling.enabled }}
+  replicas: {{ .Values.queue.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      {{- include "queue.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.queue.podAnnotations }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "queue.labels" . | nindent 8 }}
+        {{- with .Values.queue.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.queue.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.queue.podSecurityContext | nindent 8 }}
+      containers:
+        - name: queue
+          securityContext:
+            {{- toYaml .Values.queue.securityContext | nindent 12 }}
+          image: "{{ .Values.queue.image.repository }}:{{ .Values.queue.image.tag }}"
+          imagePullPolicy: {{ .Values.queue.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.queue.service.port }}
+              protocol: TCP
+          env:
+            - name: MLE_REDIS_HOST
+              value: {{ include "redis.fullname" . }}-svc
+            - name: MLE_REDIS_PORT
+              value: {{ .Values.redis.service.port | quote }}
+            - name: MLE_QUEUE_PORT
+              value: {{ .Values.queue.service.port | quote }}
+            - name: MLE_QUEUE_NAME
+              value: "mle-queue"
+            {{- with .Values.queue.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.queue.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.queue.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.queue.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.queue.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.queue.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.queue.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.queue.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.queue.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.queue.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.queue.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.queue.resources | nindent 12 }}
+          {{- with .Values.queue.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.queue.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.queue.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.queue.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.queue.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

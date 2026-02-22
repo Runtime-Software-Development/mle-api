@@ -78,6 +78,8 @@ export const extractMapFeatures = async (req, res, next) => {
         // get filtered results
         const resultData = await extractMapFeaturesFromFile(file, owner);
 
+        console.log('Extracted map features:', resultData);
+
         res.status(200).json(
             prepare({
                 view: 'extract',

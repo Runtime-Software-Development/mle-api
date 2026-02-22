@@ -1,0 +1,85 @@
+name: Deploy MLE API via Helm
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  APP_NAME: mle-api
+  CHART_PATH: helm/mle-api
+  LICENSE_PLATE: ed84ea
+  IMAGE_REPO: ghcr.io/runtime-software-development/mle-api
+  IMAGE_TAG: latest # Could be overridden by workflow_dispatch input
+  DEV_NAMESPACE: dev
+  TEST_NAMESPACE: test
+  PROD_NAMESPACE: tools # To be changed to prod when ready
+  TOOLS_NAMESPACE: tools
+  OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+  OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+
+jobs:
+
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set branch and environment variables
+        id: set_vars
+        run: |
+            BRANCH="${GITHUB_REF##*/}"
+            if [[ "$BRANCH" == "main" ]]; then
+            ENV_NAMESPACE="tools"
+            elif [[ "$BRANCH" == "dev" ]]; then
+            ENV_NAMESPACE="dev"
+            elif [[ "$BRANCH" == "test" ]]; then
+            ENV_NAMESPACE="test"
+            else
+            ENV_NAMESPACE="dev"
+            fi
+            echo "namespace=$ENV_NAMESPACE" >> $GITHUB_OUTPUT
+
+            if [[ "$BRANCH" == "dev" ]]; then
+            RELEASE_NAME="mle-api-dev"
+            elif [[ "$BRANCH" == "test" ]]; then
+            RELEASE_NAME="mle-api-test"
+            else
+            RELEASE_NAME="mle-api"
+            fi
+            echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Install oc CLI
+        uses: redhat-actions/oc-installer@v1
+        with:
+            oc_version: '4.6'
+
+      - name: Authenticate with OpenShift
+        uses: redhat-actions/oc-login@v1
+        with:
+            openshift_server_url: ${{ env.OPENSHIFT_SERVER }}
+            namespace: ${{ env.LICENSE_PLATE }}-${{ steps.set_vars.outputs.namespace }}
+            openshift_token: ${{ env.OPENSHIFT_TOKEN }}
+            insecure_skip_tls_verify: true
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+            version: 'latest'
+
+      - name: Deploy with Helm
+        run: |
+            helm upgrade --install "${{ steps.set_vars.outputs.release_name }}" ./helm \
+            --namespace "${{ env.LICENSE_PLATE }}-${{ steps.set_vars.outputs.namespace }}" \
+            --set image.repository=${{ env.IMAGE_REPO }} \
+            --set image.tag=${{ env.IMAGE_TAG }} \
+            --set fullnameOverride="${{ steps.set_vars.outputs.release_name }}"
+
+    #   - name: Trigger OpenShift Rollout
+    #     run: |
+    #         oc rollout restart deployment/${{ steps.set_vars.outputs.release_name }}
+
+  

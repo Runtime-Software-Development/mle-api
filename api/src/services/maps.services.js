@@ -100,7 +100,6 @@ export const getMapFeatureById = async function (id, client) {
  */
 
 const extractFeatures = (type, featuresArray, owner) => {
-
     let featureType;
     switch (type) {
         case 'nts':
@@ -113,33 +112,37 @@ const extractFeatures = (type, featuresArray, owner) => {
             featureType = "other";
     }
 
-    const {metadata} = owner || {};
-    const {description} = metadata || {};
-    const {features} = featuresArray || {};
-    // extract mapsheet markers
-    const pointFeatures = (features || []).filter(feature => {
-        const {geometry} = feature || {};
-        const {type} = geometry || {};
-        return type === 'Point';
-    });
-    // extract mapsheet boundaries
+    const { metadata } = owner || {};
+    const { description } = metadata || {};
+    const { features } = featuresArray || {};
+
+    // 1. Extract Point features (markers)
+    const pointFeatures = (features || []).filter(feature => 
+        feature?.geometry?.type === 'Point'
+    );
+
+    // 2. Extract Boundary features (Now includes Polygons and LineStrings)
     return (features || []).filter(feature => {
-        const {geometry} = feature || {};
-        const {type} = geometry || {};
-        return type === 'LineString';
+        const gType = feature?.geometry?.type;
+        // Added 'Polygon' to the allowed types
+        return gType === 'LineString' || gType === 'Polygon';
     }).map((feature, index) => {
+        // Find associated points based on description matching the name
+        const associatedPoints = pointFeatures
+            .filter(point => String(point.properties?.description || "").includes(feature.properties.name))
+            .map(point => point.geometry);
+
         return {
             nodes_id: index,
-            name: feature.properties.name,
+            name: feature.properties.name || `Feature ${index}`,
             type: featureType,
             owner: metadata,
             description: description,
-            geometry: ([feature.geometry]).concat((pointFeatures || [])
-                .filter(point => String(point.properties.description).includes(feature.properties.name))
-                .map(point => point.geometry))
-        }
+            // Consolidate the main geometry (Polygon/Line) with the associated Points
+            geometry: [feature.geometry, ...associatedPoints]
+        };
     });
-}
+};
 
 /**
  * Get map objects data by node ID.
@@ -151,40 +154,65 @@ const extractFeatures = (type, featuresArray, owner) => {
  */
 
 export const extractMapFeaturesFromFile = async function (file, owner) {
-
-    // get absolute file path
     const kmzFilePath = fserve.getFilePath(file);
-    // check that file exists
-    if (fs.existsSync(kmzFilePath)) console.log('File exists', kmzFilePath);
-    // buffer kmz file as binary data
-    const dataBuffer = await fs.promises.readFile(kmzFilePath);
-    const zip = await JSZip.loadAsync(dataBuffer);
-    const kmlDom = [];
-    // extract KML Dom read from buffer
-    zip.forEach(function (path, file) {
-        kmlDom.push(file.async('string'));
-    });
-    let result = []
-    // extract and convert features from each uncompressed KML file to GeoJSON format
-    await Promise.all(kmlDom.map(async (data) => {
-        // convert to JSDOM
-        const dom = new JSDOM(await data);
-        // convert DOM to geoJSON
-        const featuresArray = tj.kml(dom.window.document, {styles: false});
-        // extract features for given map object type
-        const {metadata} = owner || {};
-        const {type} = metadata || {};
-        // console.log(extractFeatures[type](featuresArray, owner))
-        const features = extractFeatures(type, featuresArray, owner);
-        result = result.concat.apply(features);
 
-    }));
-    return result;
-}
+    // 1. Check if file exists
+    if (!fs.existsSync(kmzFilePath)) {
+        throw new Error(`File not found at path: ${kmzFilePath}`);
+    }
+
+    try {
+        const dataBuffer = await fs.promises.readFile(kmzFilePath);
+        const zip = await JSZip.loadAsync(dataBuffer);
+        
+        const kmlPromises = [];
+
+        // 2. Filter for KML files only
+        zip.forEach((path, zipEntry) => {
+            if (path.toLowerCase().endsWith('.kml')) {
+                kmlPromises.push(zipEntry.async('string'));
+            }
+        });
+
+        if (kmlPromises.length === 0) {
+            throw new Error('No valid KML files found within the KMZ archive.');
+        }
+
+        const kmlStrings = await Promise.all(kmlPromises);
+        let allFeatures = [];
+
+        // 3. Process each KML file found
+        for (const kmlData of kmlStrings) {
+            const dom = new JSDOM(kmlData);
+            const geoJson = tj.kml(dom.window.document, { styles: false });
+
+            // Basic validation of the parsed GeoJSON
+            if (!geoJson || !geoJson.features) {
+                throw new Error('Failed to parse KML content into GeoJSON.');
+            }
+
+            const { metadata } = owner || {};
+            const { type } = metadata || {};
+
+            // Extract features based on your helper function
+            const extracted = extractFeatures(type, geoJson, owner);
+            
+            if (Array.isArray(extracted)) {
+                allFeatures = [...allFeatures, ...extracted];
+            }
+        }
+
+        return allFeatures;
+
+    } catch (error) {
+        // 4. Re-throw errors with context so the UI/caller can handle them
+        throw new Error(`Failed to process KMZ file: ${error.message}`);
+    }
+};
 
 
 /**
- * Get map objects data by node ID.
+ * Insert map features into database.
  *
  * @public
  * @param features
@@ -199,9 +227,6 @@ export const insertMapFeatures = async function (features, owner) {
     try {
         // generate prepared statements collated with data
         const { sql, data } = queries.maps.insertFeatures(features, owner);
-        // DEBUG
-        // console.log(sql, data)
-        // return []
         let response = await client.query(sql, data);
         return response.hasOwnProperty('rows') ? response.rows || [] : [];
 

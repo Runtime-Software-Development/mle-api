@@ -15,42 +15,52 @@
  */
 
 
-export function findFeatures(ids=[]) {
+export function findFeatures(ids = []) {
     // build id filter statement
-    // - convert id array to SQL array string
-    const idArray =  ids.map((_, index) => {return `$${++index}::integer`}).join(', ');
-    // create json map feature query
+    const idArray = ids.map((_, index) => { return `$${++index}::integer` }).join(', ');
+
     return {
         sql: `SELECT row_to_json(expanded_map_features)
               FROM (
-                    SELECT
-                map_features.*,
-                map_objects.nodes_id as map_object_id,
-                map_objects.name as map_object_name,
-                map_objects.description as map_object_description,
-                map_objects.type as map_objects_type,
+                SELECT
+                    map_features.*,
+                    map_objects.nodes_id as map_object_id,
+                    map_objects.name as map_object_name,
+                    map_objects.description as map_object_description,
+                    map_objects.type as map_objects_type,
                     (
                         SELECT jsonb_agg(nested_maps)
-                FROM (
-                    SELECT 
-                        maps.*, 
-                        survey_seasons.year AS survey_season,
-                        survey_seasons.nodes_id AS survey_season_id,
-                        surveys.name AS survey,
-                        surveys.nodes_id AS survey_id,
-                        CONCAT(surveyors.given_names, ' ', surveyors.last_name, ' ', surveyors.short_name, ' ', surveyors.affiliation) AS surveyor,
-                        surveyors.nodes_id AS surveyor_id
-                    FROM maps
-                    JOIN survey_seasons ON survey_seasons.nodes_id = maps.owner_id
-                    JOIN surveys ON surveys.nodes_id = survey_seasons.owner_id
-                    JOIN surveyors ON surveyors.nodes_id = surveys.owner_id
-                    WHERE maps.map_features_id = map_features.nodes_id
-                ) AS nested_maps
-               ) AS dependents
-              FROM map_features
-              JOIN map_objects ON map_objects.nodes_id = map_features.owner_id
-              ${idArray ? `WHERE map_features.nodes_id IN (${idArray})` : ''}
-            ) AS expanded_map_features;`,
+                        FROM (
+                            SELECT 
+                                maps.*, 
+                                -- Survey Season Fields
+                                ss.year AS survey_season,
+                                ss.nodes_id AS survey_season_id,
+                                s.name AS survey,
+                                s.nodes_id AS survey_id,
+                                CONCAT(sr.given_names, ' ', sr.last_name) AS surveyor,
+                                sr.nodes_id AS surveyor_id,
+                                -- Project Fields
+                                p.name AS project_name,
+                                p.nodes_id AS project_id,
+                                -- Helper to identify the type in JS
+                                CASE 
+                                    WHEN ss.nodes_id IS NOT NULL THEN 'survey_season'
+                                    WHEN p.nodes_id IS NOT NULL THEN 'project'
+                                    ELSE 'unknown'
+                                END as owner_type
+                            FROM maps
+                            LEFT JOIN survey_seasons ss ON ss.nodes_id = maps.owner_id
+                            LEFT JOIN surveys s ON s.nodes_id = ss.owner_id
+                            LEFT JOIN surveyors sr ON sr.nodes_id = s.owner_id
+                            LEFT JOIN projects p ON p.nodes_id = maps.owner_id
+                            WHERE maps.map_features_id = map_features.nodes_id
+                        ) AS nested_maps
+                    ) AS dependents
+                FROM map_features
+                JOIN map_objects ON map_objects.nodes_id = map_features.owner_id
+                ${idArray ? `WHERE map_features.nodes_id IN (${idArray})` : ''}
+              ) AS expanded_map_features;`,
         data: ids || []
     }
 }

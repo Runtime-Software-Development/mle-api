@@ -1,0 +1,17 @@
+MLE (Mountain Legacy Explorer) has been deployed with separate components:
+
+  API:     {{ include "mleAPI.fullname" . }}-api      ({{ .Values.mleAPI.replicaCount }} replica(s))
+  Queue:   {{ include "queue.fullname" . }}          ({{ .Values.queue.replicaCount }} replica(s))
+  Redis:   {{ include "redis.fullname" . }}          ({{ .Values.redis.replicaCount }} replica(s))
+
+Internal service DNS names (use from within the cluster):
+  API:     http://{{ include "mleAPI.fullname" . }}-api-svc:{{ .Values.mleAPI.service.port }}
+  Queue:   http://{{ include "queue.fullname" . }}-svc:{{ .Values.queue.service.port }}
+  Redis:   {{ include "redis.fullname" . }}-svc:{{ .Values.redis.service.port }}
+
+To connect to the API from outside the cluster, enable and configure Ingress
+or use port-forward:
+
+  kubectl port-forward svc/{{ include "mleAPI.fullname" . }}-api-svc {{ .Values.mleAPI.service.port }}:{{ .Values.mleAPI.service.port }}
+
+If the NGINX proxy is enabled, forward to the proxy service instead to serve the UI and API together.

@@ -78,12 +78,13 @@ export default function MetadataController(metadataType) {
      */
 
     this.getId = function(req) {
-        return req.params.hasOwnProperty(metadataModel.key)
-            ? parseInt(req.params[metadataModel.key])
-            : null;
+    return (metadataModel.key in req.params)
+        ? parseInt(req.params[metadataModel.key])
+        : null;
     };
+
     this.getOwnerId = function(req) {
-        return req.params.hasOwnProperty('owner_id')
+        return ('owner_id' in req.params)
             ? parseInt(req.params['owner_id'])
             : null;
     };

@@ -1,0 +1,17 @@
+{{- if .Values.mleAPI.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mleAPI.fullname" . }}-api-svc
+  labels:
+    {{- include "mleAPI.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.mleAPI.service.type | default "ClusterIP" }}
+  ports:
+    - name: http
+      port: {{ .Values.mleAPI.service.port }}
+      targetPort: {{ .Values.mleAPI.service.port }}
+      protocol: TCP
+  selector:
+    {{- include "mleAPI.selectorLabels" . | nindent 4 }}
+{{- end }}

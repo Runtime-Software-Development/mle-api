@@ -1,0 +1,17 @@
+{{- if and .Values.redis.enabled .Values.redis.persistence.size }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "redis.fullname" . }}-pvc
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.redis.persistence.size }}
+  {{- if .Values.redis.persistence.storageClassName }}
+  storageClassName: {{ .Values.redis.persistence.storageClassName | quote }}
+  {{- end }}
+{{- end }}

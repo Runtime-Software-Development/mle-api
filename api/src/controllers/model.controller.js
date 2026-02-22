@@ -111,7 +111,9 @@ export default function ModelController(nodeType) {
      */
 
     this.getId = function (req) {
-        return req.params.hasOwnProperty(modelTemplate.key)
+
+        // Use the 'in' operator for simplicity
+        return (modelTemplate.key in req.params)
             ? parseInt(req.params[modelTemplate.key])
             : null;
     };
@@ -239,12 +241,14 @@ export default function ModelController(nodeType) {
             if (req?.params?.owner_id && modelTemplate.isRoot) return next(new Error('invalidRequest'));
             else if (req?.params?.owner_id) {
                 // Pass client for consistent connection
-                ownerData = await nserve.select(req?.params?.owner_id, client); 
+                ownerData = await nserve.select(req?.params?.owner_id, client);
                 if (!ownerData) return next(new Error('invalidRequest'));
             }
 
             // receive and parse multi-part files and fields from request
             const { files, model } = await importer.receive(req, nodeType, ownerData);
+
+            // console.log('Received model data:', model);
 
             // Insert new model instance
             const modelInstance = await mserve.insert(model, client);
@@ -253,7 +257,7 @@ export default function ModelController(nodeType) {
             // Save files and insert file owner records
             if ((files || []).length > 0) {
                 // update each item with owner data
-                await Promise.all(files.map( async(fileData) => {
+                await Promise.all(files.map(async (fileData) => {
                     // create file model and file node constructors
                     const fileConstructor = await cserve.create('files');
                     const fileNode = new fileConstructor(fileData.file);
@@ -268,22 +272,22 @@ export default function ModelController(nodeType) {
                     // overwrite file data with file model
                     fileData.file_model = fileModel;
                 }));
-                filesResult = await fserve.upload(files, modelInstance, client); 
+                filesResult = await fserve.upload(files, modelInstance, client);
                 msg += ` Files submitted to queue for uploading. Refresh the page to see results.`
             }
 
             // If all operations succeed, commit the transaction
             await client.query('COMMIT');
 
+            // get full data and dependents of created node
+            const modelData = await nserve.select(modelInstance.id, client);
+
             // send response
             return res.status(200).json(
                 prepare({
                     view: 'show',
                     model: model,
-                    data: {
-                        files: filesResult,
-                        metadata: modelInstance
-                    },
+                    data: modelData,
                     message: {
                         msg,
                         type: 'success'
@@ -373,7 +377,7 @@ export default function ModelController(nodeType) {
             if (!itemData) return next(new Error('notFound'));
 
             // get the owner metadata
-            const ownerData = await nserve.get(itemData?.node?.owner_id, itemData?.node?.owner_type, client); 
+            const ownerData = await nserve.get(itemData?.node?.owner_id, itemData?.node?.owner_type, client);
 
             // process imported metadata
             const { node = {} } = itemData || {};
@@ -544,7 +548,7 @@ export default function ModelController(nodeType) {
                         msg: `'${itemData.label}' ${humanize(modelTemplate.name)} deleted successful!`,
                         type: 'success'
                     },
-                    path: path
+                    path
                 }));
 
         } catch (err) {

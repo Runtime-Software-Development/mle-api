@@ -1,5 +1,5 @@
 # Use specific Node.js version
-FROM node:14.21.3
+FROM node:22-alpine
 
 # Set working directory inside the container
 WORKDIR /usr/src/app

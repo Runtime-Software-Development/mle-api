@@ -1,0 +1,104 @@
+{{- if .Values.mleAPI.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mleAPI.fullname" . }}-api
+  labels:
+    {{- include "mleAPI.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.mleAPI.autoscaling.enabled }}
+  replicas: {{ .Values.mleAPI.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      {{- include "mleAPI.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.mleAPI.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "mleAPI.labels" . | nindent 8 }}
+        {{- with .Values.mleAPI.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # {{- with .Values.mleAPI.imagePullSecrets }}
+      # imagePullSecrets:
+      #   {{- toYaml . | nindent 8 }}
+      # {{- end }}
+      serviceAccountName: {{ .Values.global.serviceAccount.name }}
+      securityContext:
+        {{- toYaml .Values.mleAPI.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.mleAPI.securityContext | nindent 12 }}
+          image: {{ .Values.mleAPI.image.repository }}:{{ .Values.mleAPI.image.tag }}
+          imagePullPolicy: {{ .Values.mleAPI.image.pullPolicy }} 
+          ports: 
+            - name: http
+              containerPort: {{ .Values.mleAPI.service.port }}
+              protocol: TCP
+          {{- if .Values.mleAPI.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /api/
+              port: http
+            initialDelaySeconds: {{ .Values.mleAPI.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.mleAPI.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.mleAPI.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.mleAPI.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.mleAPI.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /api/
+              port: http
+            initialDelaySeconds: {{ .Values.mleAPI.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.mleAPI.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.mleAPI.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.mleAPI.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.mleAPI.resources | nindent 12 }}
+          env:
+            {{- if .Values.mleAPI.env }} 
+            {{- toYaml .Values.mleAPI.env | trimSuffix "\n" | nindent 12 }}
+            {{- end }}
+            - name: SSO_CLIENT_PORT
+              value: {{  .Values.mleAPI.service.port | quote }}
+            - name: NGINX_PROXY_URL
+              value: http://{{ include "mleAPI.fullname" . }}-nginx-svc:8080
+            - name: REDIS_STORE_URL
+              value: redis://{{ include "redis.fullname" . }}-svc:{{ .Values.redis.service.port }}
+            - name: REDIRECT_URL
+              value: http://{{ include "mleAPI.fullname" . }}-api-svc:{{ .Values.mleAPI.service.port }}/authn/callback
+            - name: MLE_QUEUE_SERVER_URL
+              value: http://{{ include "queue.fullname" . }}-svc:{{ .Values.queue.service.port | default 3002 }}
+            - name: VAULT_CONFIG_PATH
+              value: {{ .Values.global.vault.containerPath | default "/vault/secrets" | quote }}
+          envFrom:
+            {{- toYaml .Values.mleAPI.envFrom | nindent 12 }}
+          {{- with .Values.mleAPI.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.mleAPI.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mleAPI.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mleAPI.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mleAPI.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
