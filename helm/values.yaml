@@ -1,17 +1,11 @@
 global:
   nameOverride: ""
   fullnameOverride: ""
-  licenseplate: "ed84ea"
-  cluster: "silver"
   serviceAccount:
-    name: "ed84ea-vault"
-    # Specifies whether a service account should be created
+    # Leave empty to skip binding a service account to pods
+    name: ""
     create: false
-    # Automatically mount a ServiceAccount's API credentials?
-    automount: true
-  vault:
-    # Path where Vault injector mounts secrets (e.g. /vault/secrets)
-    containerPath: "/vault/secrets"
+    automount: false
   # -- List of servers proxied by the MLE API
   servers: []
 
@@ -27,43 +21,53 @@ mleAPI:
     tag: "latest"
     pullPolicy: IfNotPresent
 
-  vault:
-    # Name of the Vault secret to inject into the container.
-    secret: "keycloak-config"
+  # -- Image pull secret for private GHCR registry
+  # Pre-create with: kubectl create secret docker-registry ghcr-pull-secret \
+  #   --docker-server=ghcr.io --docker-username=<user> --docker-password=<token>
+  imagePullSecrets:
+    - name: ghcr-pull-secret
 
-  # -- Image Pull Secrets for Private GHCR
-  imagePullSecrets: []
- 
   podAnnotations: {}
   podLabels: {}
 
   podSecurityContext: {}
-    # fsGroup: 2000
 
   securityContext:
     runAsNonRoot: true
-    # runAsUser: 1001 # DO NOT SET THIS if you want OpenShift to assign a random non-root UID
-    allowPrivilegeEscalation: false # Recommended for security
+    allowPrivilegeEscalation: false
     capabilities:
       drop:
         - ALL
 
   env:
     - name: APP_ID
-      value: "mle-api-test"
+      value: "mle-api"
     - name: PORT
       value: "3000"
     - name: LOG_LEVEL
-      value: "debug"
+      value: "info"
     - name: REQUEST_LIMIT
       value: "100kb"
     - name: SWAGGER_API_SPEC
       value: "/api/spec"
 
+  # Session secret — pre-create with:
+  # kubectl create secret generic mle-api-secrets --from-literal=session_secret=<value>
   session:
-    # Secret name for session secret
     secretName: "mle-api-secrets"
     secretKey: "session_secret"
+
+  # Database connection — pre-create a secret containing your Postgres env vars, e.g.:
+  # kubectl create secret generic mle-db-secret \
+  #   --from-literal=DATABASE_URL=postgres://user:pass@host:5432/mle_db
+  # All keys in this secret are injected as env vars into the API container.
+  database:
+    secretName: "mle-db-secret"
+
+  # Additional envFrom sources (ConfigMaps or Secrets) injected into the container
+  envFrom: []
+  # - secretRef:
+  #     name: some-other-secret
 
   service:
     type: ClusterIP
@@ -71,57 +75,41 @@ mleAPI:
 
   ingress:
     enabled: false
-    className: ""
+    className: "nginx"
     annotations: {}
-      # kubernetes.io/ingress.class: nginx
-      # kubernetes.io/tls-acme: "true"
+      # cert-manager.io/cluster-issuer: letsencrypt-prod
+      # nginx.ingress.kubernetes.io/rewrite-target: /
     hosts:
-      - host: chart-example.local
+      - host: mle-api.example.com
         paths:
-          - path: /
-            pathType: ImplementationSpecific
+          - path: /api
+            pathType: Prefix
     tls: []
-    #  - secretName: chart-example-tls
+    #  - secretName: mle-api-tls
     #    hosts:
-    #      - chart-example.local
+    #      - mle-api.example.com
 
   resources:
-    limits:
-      cpu: 50m
-      memory: 128Mi
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
 
   autoscaling:
     enabled: false
     minReplicas: 1
-    maxReplicas: 100
+    maxReplicas: 5
     targetCPUUtilizationPercentage: 80
-    # targetMemoryUtilizationPercentage: 80
 
-  # Additional volumes on the output Deployment definition.
   volumes: []
-  # - name: foo
-  #   secret:
-  #     secretName: mysecret
-  #     optional: false
-
-  # Additional volumeMounts on the output Deployment definition.
   volumeMounts: []
-  # - name: foo
-  #   mountPath: "/etc/foo"
-  #   readOnly: true
-
-  envFrom: []
 
   nodeSelector: {}
-
   tolerations: []
-
   affinity: {}
 
-  # Liveness and Readiness Probes
   probes:
     liveness:
       enabled: true
@@ -146,19 +134,23 @@ queue:
     tag: "latest"
     pullPolicy: IfNotPresent
 
-  imagePullSecrets: []
+  imagePullSecrets:
+    - name: ghcr-pull-secret
 
   podAnnotations: {}
   podLabels: {}
 
   podSecurityContext: {}
-  securityContext: {}
-    # runAsNonRoot: true
-    # allowPrivilegeEscalation: false
 
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+  # Additional env vars for the queue worker (Redis host/port injected automatically)
   env: []
-    # POSTGRES_HOST, POSTGRES_PORT, etc. if queue needs DB
-  # Redis host/port are set automatically from release Redis service name
 
   service:
     type: ClusterIP
@@ -203,57 +195,35 @@ queue:
 redis:
 
   enabled: true
-
   replicaCount: 1
 
   image:
     repository: redis
-    pullPolicy: IfNotPresent
     tag: "8.0.2"
-
-  vault:
-    # Name of the Vault secret to inject into the container.
-    secret: "redis-password"
+    pullPolicy: IfNotPresent
 
   imagePullSecrets: []
-  nameOverride: ""
-  fullnameOverride: ""
 
   podAnnotations: {}
   podLabels: {}
 
-  podSecurityContext: {}
-    # fsGroup: 2000
+  podSecurityContext:
+    fsGroup: 999
 
-  securityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
+  # Redis official image runs as UID 999
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
 
   service:
     type: ClusterIP
     port: 6379
 
-  ingress:
-    enabled: false
-    className: ""
-    annotations: {}
-      # kubernetes.io/ingress.class: nginx
-      # kubernetes.io/tls-acme: "true"
-    hosts:
-      - host: chart-example.local
-        paths:
-          - path: /
-            pathType: ImplementationSpecific
-    tls: []
-    #  - secretName: chart-example-tls
-    #    hosts:
-    #      - chart-example.local
-
-  # Redis connection configuration
   env: {}
 
   resources:
@@ -267,129 +237,124 @@ redis:
   autoscaling:
     enabled: false
     minReplicas: 1
-    maxReplicas: 100
+    maxReplicas: 3
     targetCPUUtilizationPercentage: 80
-    # targetMemoryUtilizationPercentage: 80
 
   persistence:
     size: 100Mi
     storageClassName: ""
 
   volumes: []
-
   volumeMounts: []
 
   nodeSelector: {}
-
   tolerations: []
-
   affinity: {}
 
-# -- NGINX Reverse Proxy configuration
-nginx:
+# -- Keycloak Identity Provider
+keycloak:
 
   enabled: true
   replicaCount: 1
 
   image:
-    repository: "ghcr.io/runtime-software-development/mle-api-proxy"
-    tag: latest
-    pullPolicy: Always
+    repository: quay.io/keycloak/keycloak
+    tag: "24.0.2"
+    pullPolicy: IfNotPresent
 
-  # Use serverBlocks to provide entire Nginx server block definitions
-  # This will completely override the default generated server blocks.
-  # Ensure proper Nginx syntax and indentation within this string.
-  serverBlocks: |
-    map $http_username $username_cookie {
-        default "";
-        ""      "";
-        ~.+     "$http_username";
-    }
+  # Admin credentials — pre-create with:
+  # kubectl create secret generic keycloak-admin-secret \
+  #   --from-literal=admin-username=admin \
+  #   --from-literal=admin-password=<strong-password>
+  admin:
+    secretName: "keycloak-admin-secret"
+    usernameKey: "admin-username"
+    passwordKey: "admin-password"
 
-    server {
-        listen 8080;
-        server_name _;
+  http:
+    port: 8081
 
-        root /usr/share/nginx/html;
-        index index.html;
+  # Set to your actual public hostname in production
+  hostname: "localhost"
 
-        location / {
-            add_header Set-Cookie "originalServer=$http_x_original_server; Path=/; SameSite=Lax" always;
-            add_header Set-Cookie "username=$username_cookie; Path=/" always;
-            try_files $uri $uri/ /index.html;
-        }
+  # Database vendor: "dev-file" (H2, dev/test only) or "postgres" (production)
+  # For postgres, also configure KC_DB_URL, KC_DB_USERNAME, KC_DB_PASSWORD
+  # via additional env vars or a secret.
+  db:
+    vendor: "dev-file"
 
-        location /api/ {
-            rewrite ^/api(/.*)$ $1 break;
-            proxy_pass http://mle-api-svc:3000;
-            
-            #Debug proxyhost
-            add_header X-Debug-Upstream "$scheme://$proxy_host$request_uri" always;
-
-            proxy_ssl_server_name on;
-
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-            proxy_set_header X-Original-Server $http_x_original_server;
-        }
-
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|otf|eot|json)$ {
-            expires 1y;
-            add_header Cache-Control "public, max-age=31536000, immutable";
-        }
-
-        error_page 404 /index.html;
-    }
+  # Realm initialization — imported from a pre-created Kubernetes Secret.
+  # Keycloak skips import if the realm already exists.
+  # Create with:
+  #   kubectl create secret generic keycloak-realm-secret \
+  #     --from-file=mle-realm.json=./mle-realm.json
+  realm:
+    secretName: "keycloak-realm-secret"
+    secretKey: "mle-realm.json"
 
   service:
-    type: ClusterIP 
-    ports:
-      http: 8080
-      https: 8081
+    type: ClusterIP
+    port: 8081
 
   ingress:
-    enabled: false # Set to true to use Kubernetes Ingress resource (requires Ingress Controller)
-    className: "nginx" # Or your specific Ingress Controller class name
-    host: "sso.example.com"
+    enabled: false
+    className: "nginx"
+    annotations: {}
+    host: "keycloak.example.com"
     path: /
     pathType: Prefix
-    annotations: {} # Add any specific Ingress annotations here (e.g., cert-manager, rewrite rules)
     tls:
       enabled: false
-      secretName: "" # e.g., sso-example-com-tls
+      secretName: ""
+
+  # H2 persistence — only relevant when db.vendor is dev-file.
+  # For postgres deployments this is not needed.
+  persistence:
+    enabled: false
+    size: 1Gi
+    storageClassName: ""
+
+  podAnnotations: {}
+  podLabels: {}
+
+  podSecurityContext: {}
+
+  # Keycloak official image runs as UID 1000
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
 
   resources:
     requests:
-      cpu: 50m
-      memory: 64Mi
+      cpu: 500m
+      memory: 512Mi
     limits:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 1000m
+      memory: 1Gi
 
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 100
-    targetCPUUtilizationPercentage: 80
-    # targetMemoryUtilizationPercentage: 80
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
-  # Liveness and Readiness Probes
+  # Keycloak can be slow to start — give it generous initial delays
   probes:
     liveness:
+      enabled: true
+      initialDelaySeconds: 90
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readiness:
       enabled: true
       initialDelaySeconds: 30
       periodSeconds: 10
       timeoutSeconds: 5
       failureThreshold: 3
-    readiness:
-      enabled: true
-      initialDelaySeconds: 10
-      periodSeconds: 10
-      timeoutSeconds: 5
-      failureThreshold: 3
 
-  volumeMounts: []
-
-  volumes: []
+# -- NGINX Reverse Proxy (disabled — Kubernetes Ingress handles routing)
+nginx:
+  enabled: false

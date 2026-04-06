@@ -1,0 +1,20 @@
+{{- if and .Values.keycloak.enabled .Values.keycloak.persistence.enabled }}
+# PVC for Keycloak H2 data persistence.
+# Only needed when keycloak.db.vendor is "dev-file".
+# For production Postgres deployments this resource is not created.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "keycloak.fullname" . }}-pvc
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.keycloak.persistence.size }}
+  {{- if .Values.keycloak.persistence.storageClassName }}
+  storageClassName: {{ .Values.keycloak.persistence.storageClassName | quote }}
+  {{- end }}
+{{- end }}

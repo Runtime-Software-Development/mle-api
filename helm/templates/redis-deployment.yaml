@@ -16,7 +16,8 @@ spec:
   template:
     metadata:
       {{- with .Values.redis.podAnnotations }}
-      {{- toYaml . | nindent 8 }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
         {{- include "redis.labels" . | nindent 8 }}
@@ -47,16 +48,6 @@ spec:
           args:
             - --appendonly
             - "yes"
-          volumeMounts:
-            {{- if .Values.redis.persistence.size }}
-            - name: redis-data
-              mountPath: /data
-            {{- end }}
-            {{- with .Values.redis.volumeMounts }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-          resources:
-            {{- toYaml .Values.redis.resources | nindent 12 }}
           livenessProbe:
             tcpSocket:
               port: redis
@@ -69,6 +60,16 @@ spec:
                 - ping
             initialDelaySeconds: 5
             periodSeconds: 5
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.redis.persistence.size }}
+            - name: redis-data
+              mountPath: /data
+            {{- end }}
+            {{- with .Values.redis.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
       volumes:
         {{- if .Values.redis.persistence.size }}
         - name: redis-data

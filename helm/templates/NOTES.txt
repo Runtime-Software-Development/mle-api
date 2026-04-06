@@ -1,17 +1,59 @@
-MLE (Mountain Legacy Explorer) has been deployed with separate components:
+MLE has been deployed with the following components:
 
-  API:     {{ include "mleAPI.fullname" . }}-api      ({{ .Values.mleAPI.replicaCount }} replica(s))
-  Queue:   {{ include "queue.fullname" . }}          ({{ .Values.queue.replicaCount }} replica(s))
-  Redis:   {{ include "redis.fullname" . }}          ({{ .Values.redis.replicaCount }} replica(s))
+  API:       {{ include "mleAPI.fullname" . }}-api        ({{ .Values.mleAPI.replicaCount }} replica(s))
+  Queue:     {{ include "queue.fullname" . }}              ({{ .Values.queue.replicaCount }} replica(s))
+  Redis:     {{ include "redis.fullname" . }}              ({{ .Values.redis.replicaCount }} replica(s))
+  {{- if .Values.keycloak.enabled }}
+  Keycloak:  {{ include "keycloak.fullname" . }}           ({{ .Values.keycloak.replicaCount }} replica(s))
+  {{- end }}
 
-Internal service DNS names (use from within the cluster):
-  API:     http://{{ include "mleAPI.fullname" . }}-api-svc:{{ .Values.mleAPI.service.port }}
-  Queue:   http://{{ include "queue.fullname" . }}-svc:{{ .Values.queue.service.port }}
-  Redis:   {{ include "redis.fullname" . }}-svc:{{ .Values.redis.service.port }}
+Internal service DNS (use from within the cluster):
+  API:       http://{{ include "mleAPI.fullname" . }}-api-svc:{{ .Values.mleAPI.service.port }}
+  Queue:     http://{{ include "queue.fullname" . }}-svc:{{ .Values.queue.service.port }}
+  Redis:     {{ include "redis.fullname" . }}-svc:{{ .Values.redis.service.port }}
+  {{- if .Values.keycloak.enabled }}
+  Keycloak:  http://{{ include "keycloak.fullname" . }}-svc:{{ .Values.keycloak.service.port }}
+  {{- end }}
 
-To connect to the API from outside the cluster, enable and configure Ingress
-or use port-forward:
+{{- if .Values.mleAPI.ingress.enabled }}
 
-  kubectl port-forward svc/{{ include "mleAPI.fullname" . }}-api-svc {{ .Values.mleAPI.service.port }}:{{ .Values.mleAPI.service.port }}
+API is exposed via Ingress:
+  {{- range .Values.mleAPI.ingress.hosts }}
+  http{{ if $.Values.mleAPI.ingress.tls }}s{{ end }}://{{ .host }}
+  {{- end }}
 
-If the NGINX proxy is enabled, forward to the proxy service instead to serve the UI and API together.
+{{- else }}
+
+To access the API locally via port-forward:
+  kubectl port-forward svc/{{ include "mleAPI.fullname" . }}-api-svc {{ .Values.mleAPI.service.port }}:{{ .Values.mleAPI.service.port }} -n {{ .Release.Namespace }}
+
+{{- end }}
+
+{{- if and .Values.keycloak.enabled (not .Values.keycloak.ingress.enabled) }}
+
+To access the Keycloak admin console locally via port-forward:
+  kubectl port-forward svc/{{ include "keycloak.fullname" . }}-svc {{ .Values.keycloak.service.port }}:{{ .Values.keycloak.service.port }} -n {{ .Release.Namespace }}
+  Then open: http://localhost:{{ .Values.keycloak.service.port }}/admin
+
+{{- end }}
+
+Pre-requisite secrets (must exist before deploy):
+  kubectl create secret generic {{ .Values.mleAPI.session.secretName }} \
+    --from-literal={{ .Values.mleAPI.session.secretKey }}=<session-secret>
+
+  kubectl create secret generic {{ .Values.mleAPI.database.secretName }} \
+    --from-literal=DATABASE_URL=postgres://user:pass@host:5432/mle_db
+
+  {{- if .Values.keycloak.enabled }}
+  kubectl create secret generic {{ .Values.keycloak.admin.secretName }} \
+    --from-literal={{ .Values.keycloak.admin.usernameKey }}=admin \
+    --from-literal={{ .Values.keycloak.admin.passwordKey }}=<strong-password>
+
+  kubectl create secret generic {{ .Values.keycloak.realm.secretName }} \
+    --from-file={{ .Values.keycloak.realm.secretKey }}=./mle-realm.json
+  {{- end }}
+
+  kubectl create secret docker-registry ghcr-pull-secret \
+    --docker-server=ghcr.io \
+    --docker-username=<github-user> \
+    --docker-password=<github-token>

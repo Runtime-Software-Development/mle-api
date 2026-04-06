@@ -1,0 +1,69 @@
+{{- if .Values.mleAPI.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "mleAPI.fullname" . }}-api
+  labels:
+    {{- include "mleAPI.labels" . | nindent 4 }}
+  {{- with .Values.mleAPI.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.mleAPI.ingress.className }}
+  ingressClassName: {{ .Values.mleAPI.ingress.className }}
+  {{- end }}
+  {{- if .Values.mleAPI.ingress.tls }}
+  tls:
+    {{- toYaml .Values.mleAPI.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.mleAPI.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "mleAPI.fullname" $ }}-api-svc
+                port:
+                  number: {{ $.Values.mleAPI.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}
+---
+{{- if and .Values.keycloak.enabled .Values.keycloak.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "keycloak.fullname" . }}
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+  {{- with .Values.keycloak.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.keycloak.ingress.className }}
+  ingressClassName: {{ .Values.keycloak.ingress.className }}
+  {{- end }}
+  {{- if .Values.keycloak.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.keycloak.ingress.host | quote }}
+      secretName: {{ .Values.keycloak.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.keycloak.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.keycloak.ingress.path }}
+            pathType: {{ .Values.keycloak.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "keycloak.fullname" . }}-svc
+                port:
+                  number: {{ .Values.keycloak.service.port }}
+{{- end }}

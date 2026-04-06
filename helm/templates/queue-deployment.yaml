@@ -16,7 +16,8 @@ spec:
   template:
     metadata:
       {{- with .Values.queue.podAnnotations }}
-      {{- toYaml . | nindent 8 }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
         {{- include "queue.labels" . | nindent 8 }}
@@ -42,7 +43,7 @@ spec:
               protocol: TCP
           env:
             - name: MLE_REDIS_HOST
-              value: {{ include "redis.fullname" . }}-svc
+              value: "{{ include "redis.fullname" . }}-svc"
             - name: MLE_REDIS_PORT
               value: {{ .Values.redis.service.port | quote }}
             - name: MLE_QUEUE_PORT

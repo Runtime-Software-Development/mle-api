@@ -101,3 +101,31 @@ app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
+
+{{/*
+Keycloak fullname
+*/}}
+{{- define "keycloak.fullname" -}}
+{{- printf "%s-keycloak" (include "mleAPI.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Keycloak selector labels
+*/}}
+{{- define "keycloak.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "mleAPI.name" . }}-keycloak
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: keycloak
+{{- end }}
+
+{{/*
+Keycloak labels
+*/}}
+{{- define "keycloak.labels" -}}
+helm.sh/chart: {{ include "mleAPI.chart" . }}
+{{ include "keycloak.selectorLabels" . }}
+{{- if $.Chart.AppVersion }}
+app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}

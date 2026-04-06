@@ -1,0 +1,124 @@
+{{- if .Values.keycloak.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "keycloak.fullname" . }}
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+spec:
+  # Keycloak with dev-file (H2) must run as a single replica
+  replicas: {{ .Values.keycloak.replicaCount }}
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      {{- include "keycloak.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.keycloak.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "keycloak.labels" . | nindent 8 }}
+        {{- with .Values.keycloak.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.keycloak.podSecurityContext | nindent 8 }}
+      containers:
+        - name: keycloak
+          securityContext:
+            {{- toYaml .Values.keycloak.securityContext | nindent 12 }}
+          image: "{{ .Values.keycloak.image.repository }}:{{ .Values.keycloak.image.tag }}"
+          imagePullPolicy: {{ .Values.keycloak.image.pullPolicy }}
+          # start-dev: suitable for dev-file (H2) database.
+          # For production with Postgres, change to: ["start", "--import-realm"]
+          args:
+            - start-dev
+            - --import-realm
+            - --http-port={{ .Values.keycloak.http.port }}
+          env:
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.keycloak.admin.secretName }}
+                  key: {{ .Values.keycloak.admin.usernameKey }}
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.keycloak.admin.secretName }}
+                  key: {{ .Values.keycloak.admin.passwordKey }}
+            - name: KC_DB
+              value: {{ .Values.keycloak.db.vendor | quote }}
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HTTP_PORT
+              value: {{ .Values.keycloak.http.port | quote }}
+            - name: KC_HOSTNAME
+              value: {{ .Values.keycloak.hostname | quote }}
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_HOSTNAME_STRICT_HTTPS
+              value: "false"
+          ports:
+            - name: http
+              containerPort: {{ .Values.keycloak.http.port }}
+              protocol: TCP
+          {{- if .Values.keycloak.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: {{ .Values.keycloak.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.keycloak.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.keycloak.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.keycloak.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.keycloak.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: {{ .Values.keycloak.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.keycloak.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.keycloak.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.keycloak.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.keycloak.resources | nindent 12 }}
+          volumeMounts:
+            # Mount realm JSON from a pre-created Secret using subPath so
+            # it drops a single file without shadowing the import directory.
+            # Create with: kubectl create secret generic <secretName> \
+            #   --from-file=<secretKey>=./mle-realm.json
+            - name: realm-config
+              mountPath: /opt/keycloak/data/import/mle-realm.json
+              subPath: {{ .Values.keycloak.realm.secretKey }}
+              readOnly: true
+            {{- if .Values.keycloak.persistence.enabled }}
+            - name: keycloak-data
+              mountPath: /opt/keycloak/data/h2
+            {{- end }}
+      volumes:
+        - name: realm-config
+          secret:
+            secretName: {{ .Values.keycloak.realm.secretName }}
+        {{- if .Values.keycloak.persistence.enabled }}
+        - name: keycloak-data
+          persistentVolumeClaim:
+            claimName: {{ include "keycloak.fullname" . }}-pvc
+        {{- end }}
+      {{- with .Values.keycloak.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.keycloak.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.keycloak.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

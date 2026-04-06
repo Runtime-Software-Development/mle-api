@@ -46,7 +46,7 @@ services:
       timeout: 5s
       retries: 6
     volumes:
-      - ./mle-test-realm.json:/opt/keycloak/data/import/mle-test-realm.json
+      - ./mle-local-realm.json:/opt/keycloak/data/import/mle-local-realm.json
       - keycloak_data:/opt/keycloak/data
     networks:
       - mle_network

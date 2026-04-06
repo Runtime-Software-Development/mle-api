@@ -15,29 +15,32 @@ spec:
       {{- include "mleAPI.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.mleAPI.podAnnotations }}
+      annotations:
+        {{- with .Values.mleAPI.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
         {{- include "mleAPI.labels" . | nindent 8 }}
         {{- with .Values.mleAPI.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      # {{- with .Values.mleAPI.imagePullSecrets }}
-      # imagePullSecrets:
-      #   {{- toYaml . | nindent 8 }}
-      # {{- end }}
+      {{- with .Values.mleAPI.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.serviceAccount.name }}
       serviceAccountName: {{ .Values.global.serviceAccount.name }}
+      {{- end }}
       securityContext:
         {{- toYaml .Values.mleAPI.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.mleAPI.securityContext | nindent 12 }}
-          image: {{ .Values.mleAPI.image.repository }}:{{ .Values.mleAPI.image.tag }}
-          imagePullPolicy: {{ .Values.mleAPI.image.pullPolicy }} 
-          ports: 
+          image: "{{ .Values.mleAPI.image.repository }}:{{ .Values.mleAPI.image.tag }}"
+          imagePullPolicy: {{ .Values.mleAPI.image.pullPolicy }}
+          ports:
             - name: http
               containerPort: {{ .Values.mleAPI.service.port }}
               protocol: TCP
@@ -64,23 +67,36 @@ spec:
           resources:
             {{- toYaml .Values.mleAPI.resources | nindent 12 }}
           env:
-            {{- if .Values.mleAPI.env }} 
-            {{- toYaml .Values.mleAPI.env | trimSuffix "\n" | nindent 12 }}
+            {{- if .Values.mleAPI.env }}
+            {{- toYaml .Values.mleAPI.env | nindent 12 }}
             {{- end }}
             - name: SSO_CLIENT_PORT
-              value: {{  .Values.mleAPI.service.port | quote }}
-            - name: NGINX_PROXY_URL
-              value: http://{{ include "mleAPI.fullname" . }}-nginx-svc:8080
+              value: {{ .Values.mleAPI.service.port | quote }}
             - name: REDIS_STORE_URL
-              value: redis://{{ include "redis.fullname" . }}-svc:{{ .Values.redis.service.port }}
-            - name: REDIRECT_URL
-              value: http://{{ include "mleAPI.fullname" . }}-api-svc:{{ .Values.mleAPI.service.port }}/authn/callback
+              value: "redis://{{ include "redis.fullname" . }}-svc:{{ .Values.redis.service.port }}"
             - name: MLE_QUEUE_SERVER_URL
-              value: http://{{ include "queue.fullname" . }}-svc:{{ .Values.queue.service.port | default 3002 }}
-            - name: VAULT_CONFIG_PATH
-              value: {{ .Values.global.vault.containerPath | default "/vault/secrets" | quote }}
+              value: "http://{{ include "queue.fullname" . }}-svc:{{ .Values.queue.service.port | default 3002 }}"
+            {{- if .Values.keycloak.enabled }}
+            - name: KEYCLOAK_URL
+              value: "http://{{ include "keycloak.fullname" . }}-svc:{{ .Values.keycloak.service.port }}"
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.keycloak.realm.name | quote }}
+            - name: KEYCLOAK_CLIENT_ID
+              value: {{ .Values.keycloak.realm.clientId | quote }}
+            {{- end }}
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.mleAPI.session.secretName }}
+                  key: {{ .Values.mleAPI.session.secretKey }}
+            - name: REDIRECT_URL
+              value: "http://{{ include "mleAPI.fullname" . }}-api-svc:{{ .Values.mleAPI.service.port }}/authn/callback"
           envFrom:
-            {{- toYaml .Values.mleAPI.envFrom | nindent 12 }}
+            - secretRef:
+                name: {{ .Values.mleAPI.database.secretName }}
+            {{- with .Values.mleAPI.envFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- with .Values.mleAPI.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
