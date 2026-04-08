@@ -20,4 +20,4 @@ RUN mkdir -p /usr/src/app/data && chmod 1777 /usr/src/app/data
 EXPOSE 3001
 
 # Start the app [Development mode with nodemon]
-CMD ["npm", "start-dev"]
+CMD ["npm", "start"]

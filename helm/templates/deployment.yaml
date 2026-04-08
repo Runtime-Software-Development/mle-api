@@ -70,28 +70,31 @@ spec:
             {{- if .Values.mleAPI.env }}
             {{- toYaml .Values.mleAPI.env | nindent 12 }}
             {{- end }}
-            - name: SSO_CLIENT_PORT
-              value: {{ .Values.mleAPI.service.port | quote }}
-            - name: REDIS_STORE_URL
-              value: "redis://{{ include "redis.fullname" . }}-svc:{{ .Values.redis.service.port }}"
+            # Redis — injected as individual vars to match app expectations
+            - name: MLE_REDIS_HOST
+              value: "{{ include "redis.fullname" . }}-svc"
+            - name: MLE_REDIS_PORT
+              value: {{ .Values.redis.service.port | quote }}
+            # Queue worker URL
             - name: MLE_QUEUE_SERVER_URL
               value: "http://{{ include "queue.fullname" . }}-svc:{{ .Values.queue.service.port | default 3002 }}"
             {{- if .Values.keycloak.enabled }}
-            - name: KEYCLOAK_URL
+            # Keycloak — env var names match the app's MLE_KC_* convention
+            - name: MLE_KC_SERVER_URL
               value: "http://{{ include "keycloak.fullname" . }}-svc:{{ .Values.keycloak.service.port }}"
-            - name: KEYCLOAK_REALM
+            - name: MLE_KC_REALM
               value: {{ .Values.keycloak.realm.name | quote }}
-            - name: KEYCLOAK_CLIENT_ID
+            - name: MLE_KC_CLIENT_ID
               value: {{ .Values.keycloak.realm.clientId | quote }}
             {{- end }}
-            - name: SESSION_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.mleAPI.session.secretName }}
-                  key: {{ .Values.mleAPI.session.secretKey }}
             - name: REDIRECT_URL
               value: "http://{{ include "mleAPI.fullname" . }}-api-svc:{{ .Values.mleAPI.service.port }}/authn/callback"
+          # Sensitive vars injected from pre-created Secrets.
+          # MLE_COOKIE_SECRET, MLE_KC_CLIENT_SECRET, MLE_API_PASS/HASH/SALT → mle-api-secrets
+          # POSTGRES_HOST/PORT/DB/USER/PASSWORD                              → mle-db-secret
           envFrom:
+            - secretRef:
+                name: {{ .Values.mleAPI.session.secretName }}
             - secretRef:
                 name: {{ .Values.mleAPI.database.secretName }}
             {{- with .Values.mleAPI.envFrom }}

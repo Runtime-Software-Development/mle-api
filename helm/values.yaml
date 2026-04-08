@@ -18,49 +18,96 @@ mleAPI:
 
   image:
     repository: "ghcr.io/runtime-software-development/mle-api"
-    tag: "latest"
+    tag: "43e0b4c"
     pullPolicy: IfNotPresent
 
-  # -- Image pull secret for private GHCR registry
-  # Pre-create with: kubectl create secret docker-registry ghcr-pull-secret \
-  #   --docker-server=ghcr.io --docker-username=<user> --docker-password=<token>
+  # GHCR package visibility is org-restricted — pull secret required.
+  # kubectl create secret docker-registry ghcr-pull-secret \
+  #   --docker-server=ghcr.io \
+  #   --docker-username=<github-username> \
+  #   --docker-password=<github-pat-with-read:packages>
   imagePullSecrets:
     - name: ghcr-pull-secret
 
   podAnnotations: {}
   podLabels: {}
 
-  podSecurityContext: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
 
   securityContext:
     runAsNonRoot: true
+    runAsUser: 1000
     allowPrivilegeEscalation: false
     capabilities:
       drop:
         - ALL
 
   env:
-    - name: APP_ID
-      value: "mle-api"
+    # Runtime
+    - name: NODE_ENV
+      value: "production"
     - name: PORT
       value: "3000"
+    - name: MLE_API_PORT
+      value: "3000"
+    - name: APP_ID
+      value: "mle-api"
     - name: LOG_LEVEL
       value: "info"
+    - name: MLE_LOG_FORMAT
+      value: "combined"
     - name: REQUEST_LIMIT
       value: "100kb"
     - name: SWAGGER_API_SPEC
       value: "/api/spec"
+    # App URLs — override these per environment
+    - name: MLE_APP_BASEURL
+      value: "http://localhost:3000"
+    - name: MLE_API_BASEURL
+      value: "http://localhost:3000"
+    # Queue config (connection vars are injected dynamically by the template)
+    - name: MLE_QUEUE_NAME
+      value: "mle-queue"
+    - name: MLE_QUEUE_CONCURRENCY
+      value: "5"
+    - name: MLE_QUEUE_PORT
+      value: "3002"
+    # File paths
+    - name: MLE_UPLOAD_DIR
+      value: "/usr/src/app/data/uploads"
+    - name: MLE_TMP_DIR
+      value: "/usr/src/app/data/tmp"
+    - name: MLE_LOWRES_DIR
+      value: "/usr/src/app/data/versions"
+    - name: MLE_ROOT_DIR
+      value: "/usr/src/app"
+    # Logging
+    - name: MLE_LOG_DIR
+      value: "/usr/src/app/logs"
+    - name: MLE_ACCESS_LOG_FILE
+      value: "access.log"
+    - name: MLE_ERROR_LOG_FILE
+      value: "error.log"
 
-  # Session secret — pre-create with:
-  # kubectl create secret generic mle-api-secrets --from-literal=session_secret=<value>
+  # Sensitive API credentials — pre-create with:
+  # kubectl create secret generic mle-api-secrets \
+  #   --from-literal=MLE_COOKIE_SECRET=<value> \
+  #   --from-literal=MLE_KC_CLIENT_SECRET=<value> \
+  #   --from-literal=MLE_API_PASS=<value> \
+  #   --from-literal=MLE_API_HASH=<value> \
+  #   --from-literal=MLE_API_SALT=<value>
   session:
     secretName: "mle-api-secrets"
-    secretKey: "session_secret"
 
-  # Database connection — pre-create a secret containing your Postgres env vars, e.g.:
+  # Postgres credentials — pre-create with:
   # kubectl create secret generic mle-db-secret \
-  #   --from-literal=DATABASE_URL=postgres://user:pass@host:5432/mle_db
-  # All keys in this secret are injected as env vars into the API container.
+  #   --from-literal=POSTGRES_HOST=<host> \
+  #   --from-literal=POSTGRES_PORT=5432 \
+  #   --from-literal=POSTGRES_DB=mle_db \
+  #   --from-literal=POSTGRES_USER=<user> \
+  #   --from-literal=POSTGRES_PASSWORD=<password>
   database:
     secretName: "mle-db-secret"
 
@@ -131,7 +178,7 @@ queue:
 
   image:
     repository: "ghcr.io/runtime-software-development/mle-queue"
-    tag: "latest"
+    tag: 43e0b4c
     pullPolicy: IfNotPresent
 
   imagePullSecrets:
@@ -140,10 +187,13 @@ queue:
   podAnnotations: {}
   podLabels: {}
 
-  podSecurityContext: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
 
   securityContext:
     runAsNonRoot: true
+    runAsUser: 1000
     allowPrivilegeEscalation: false
     capabilities:
       drop:
@@ -209,6 +259,8 @@ redis:
 
   podSecurityContext:
     fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
 
   # Redis official image runs as UID 999
   securityContext:
@@ -291,6 +343,9 @@ keycloak:
   realm:
     secretName: "keycloak-realm-secret"
     secretKey: "mle-realm.json"
+    # Non-sensitive realm identifiers — used to inject env vars into the API
+    name: "mle-realm"
+    clientId: "mle-kc-client"
 
   service:
     type: ClusterIP
@@ -317,7 +372,9 @@ keycloak:
   podAnnotations: {}
   podLabels: {}
 
-  podSecurityContext: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
 
   # Keycloak official image runs as UID 1000
   securityContext:

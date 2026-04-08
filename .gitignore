@@ -146,6 +146,11 @@ dist
 # Keycloak
 mle-test-realm.json
 
+# Helm
+helm/values.production.yaml
+helm/values.test.yaml
+helm/values.dev.yaml
+
 # AWS
 .aws
 

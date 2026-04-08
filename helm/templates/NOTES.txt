@@ -55,5 +55,5 @@ Pre-requisite secrets (must exist before deploy):
 
   kubectl create secret docker-registry ghcr-pull-secret \
     --docker-server=ghcr.io \
-    --docker-username=<github-user> \
-    --docker-password=<github-token>
+    --docker-username=<github-username> \
+    --docker-password=<github-pat-with-read:packages>
