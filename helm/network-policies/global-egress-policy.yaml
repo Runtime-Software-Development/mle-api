@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-comms
+  namespace: mlp-explorer-test
+spec:
+  podSelector: {} 
+  policyTypes:
+  - Egress
+  egress:
+  # 1. Allow DNS lookups (Mandatory for hostnames)
+  - ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # 2. Allow External Postgres
+  - ports:
+    - protocol: TCP
+      port: 5432
+  # 3. Allow HTTP/S (Google, APIs, etc.)
+  - ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443

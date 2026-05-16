@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mlp-nfs-pv
+spec:
+  capacity:
+    storage: 10Ti
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    server: rsfshare.uvic.ca
+    path: /mlp
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlp-nfs-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 10Ti
+  volumeName: mlp-nfs-pv

@@ -32,10 +32,10 @@ spec:
             {{- toYaml .Values.keycloak.securityContext | nindent 12 }}
           image: "{{ .Values.keycloak.image.repository }}:{{ .Values.keycloak.image.tag }}"
           imagePullPolicy: {{ .Values.keycloak.image.pullPolicy }}
-          # start-dev: suitable for dev-file (H2) database.
+          # start: suitable for dev-file (H2) database.
           # For production with Postgres, change to: ["start", "--import-realm"]
           args:
-            - start-dev
+            - start
             - --import-realm
             - --http-port={{ .Values.keycloak.http.port }}
           env:
@@ -61,6 +61,8 @@ spec:
               value: "false"
             - name: KC_HOSTNAME_STRICT_HTTPS
               value: "false"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
           ports:
             - name: http
               containerPort: {{ .Values.keycloak.http.port }}
@@ -88,13 +90,11 @@ spec:
           resources:
             {{- toYaml .Values.keycloak.resources | nindent 12 }}
           volumeMounts:
-            # Mount realm JSON from a pre-created Secret using subPath so
-            # it drops a single file without shadowing the import directory.
-            # Create with: kubectl create secret generic <secretName> \
-            #   --from-file=<secretKey>=./mle-realm.json
+            # Mount the realm secret as the entire import directory.
+            # Kubernetes populates the directory with one file per secret key,
+            # which Keycloak's DirImportProvider reads correctly on startup.
             - name: realm-config
-              mountPath: /opt/keycloak/data/import/mle-realm.json
-              subPath: {{ .Values.keycloak.realm.secretKey }}
+              mountPath: /opt/keycloak/data/import
               readOnly: true
             {{- if .Values.keycloak.persistence.enabled }}
             - name: keycloak-data

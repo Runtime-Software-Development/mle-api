@@ -47,7 +47,7 @@ spec:
           {{- if .Values.mleAPI.probes.liveness.enabled }}
           livenessProbe:
             httpGet:
-              path: /api/
+              path: /
               port: http
             initialDelaySeconds: {{ .Values.mleAPI.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.mleAPI.probes.liveness.periodSeconds }}
@@ -57,7 +57,7 @@ spec:
           {{- if .Values.mleAPI.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
-              path: /api/
+              path: /
               port: http
             initialDelaySeconds: {{ .Values.mleAPI.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.mleAPI.probes.readiness.periodSeconds }}
@@ -100,14 +100,23 @@ spec:
             {{- with .Values.mleAPI.envFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.mleAPI.volumeMounts }}
           volumeMounts:
+            {{- if .Values.mleAPI.persistence.logs.enabled }}
+            - name: logs
+              mountPath: {{ .Values.mleAPI.persistence.logs.mountPath }}
+            {{- end }}
+            {{- with .Values.mleAPI.volumeMounts }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
-      {{- with .Values.mleAPI.volumes }}
+            {{- end }}
       volumes:
+        {{- if .Values.mleAPI.persistence.logs.enabled }}
+        - name: logs
+          persistentVolumeClaim:
+            claimName: {{ include "mleAPI.fullname" . }}-logs-pvc
+        {{- end }}
+        {{- with .Values.mleAPI.volumes }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       {{- with .Values.mleAPI.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

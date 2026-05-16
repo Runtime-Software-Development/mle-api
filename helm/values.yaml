@@ -18,7 +18,7 @@ mleAPI:
 
   image:
     repository: "ghcr.io/runtime-software-development/mle-api"
-    tag: "43e0b4c"
+    tag: "0a06ac1"
     pullPolicy: IfNotPresent
 
   # GHCR package visibility is org-restricted — pull secret required.
@@ -35,6 +35,8 @@ mleAPI:
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault
+    # Ensures mounted volumes are writable by the node user (UID 1000)
+    fsGroup: 1000
 
   securityContext:
     runAsNonRoot: true
@@ -43,6 +45,17 @@ mleAPI:
     capabilities:
       drop:
         - ALL
+
+  # Persistent storage for log files written by the API
+  # Note: cinder.csi.openstack.org only supports ReadWriteOnce
+  persistence:
+    logs:
+      enabled: true
+      size: 1Gi
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      mountPath: /usr/src/app/logs
 
   env:
     # Runtime
@@ -178,7 +191,7 @@ queue:
 
   image:
     repository: "ghcr.io/runtime-software-development/mle-queue"
-    tag: 43e0b4c
+    tag: "0a06ac1"
     pullPolicy: IfNotPresent
 
   imagePullSecrets:
@@ -397,17 +410,16 @@ keycloak:
   tolerations: []
   affinity: {}
 
-  # Keycloak can be slow to start — give it generous initial delays
   probes:
     liveness:
       enabled: true
-      initialDelaySeconds: 90
+      initialDelaySeconds: 120
       periodSeconds: 15
       timeoutSeconds: 5
       failureThreshold: 6
     readiness:
       enabled: true
-      initialDelaySeconds: 30
+      initialDelaySeconds: 60
       periodSeconds: 10
       timeoutSeconds: 5
       failureThreshold: 3

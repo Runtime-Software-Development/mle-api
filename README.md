@@ -132,7 +132,7 @@ Once the services are up:
 ### `keycloak` (Authentication Server)
 
   * **Image**: `quay.io/keycloak/keycloak:24.0.2`
-  * **Command**: `start-dev --http-port=8081 --import-realm` (Starts in development mode and imports the `mle-local-realm.json` realm on startup).
+  * **Command**: `start --http-port=8081 --import-realm` (Starts in development mode and imports the `mle-local-realm.json` realm on startup).
   * **Ports**: `8081:8081` (Keycloak application port)
   * **Admin Credentials**: `admin` / `admin`
   * **Realm Initialization**: Automatically imports the `mle-local-realm.json` file located in the same directory as `docker-compose.yml` into Keycloak. This provides a pre-configured realm for testing.

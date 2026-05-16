@@ -1,0 +1,17 @@
+{{- if and .Values.mleAPI.enabled .Values.mleAPI.persistence.logs.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "mleAPI.fullname" . }}-logs-pvc
+  labels:
+    {{- include "mleAPI.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.mleAPI.persistence.logs.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.mleAPI.persistence.logs.size }}
+  {{- if .Values.mleAPI.persistence.logs.storageClassName }}
+  storageClassName: {{ .Values.mleAPI.persistence.logs.storageClassName | quote }}
+  {{- end }}
+{{- end }}
