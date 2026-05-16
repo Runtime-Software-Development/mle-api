@@ -51,7 +51,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.API_IMAGE }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            type=raw,value=latest
             type=sha,prefix=
             type=ref,event=tag
 
@@ -73,7 +73,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.QUEUE_IMAGE }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            type=raw,value=latest
             type=sha,prefix=
             type=ref,event=tag
 
@@ -95,7 +95,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.PROXY_IMAGE }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            type=raw,value=latest
             type=sha,prefix=
             type=ref,event=tag
 
@@ -113,6 +113,6 @@ jobs:
       - name: Summary
         run: |
           echo "## Images pushed to GHCR" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.REGISTRY }}/${{ env.API_IMAGE }}:${{ github.ref == 'refs/heads/main' && 'latest' || github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.REGISTRY }}/${{ env.QUEUE_IMAGE }}:${{ github.ref == 'refs/heads/main' && 'latest' || github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.REGISTRY }}/${{ env.PROXY_IMAGE }}:${{ github.ref == 'refs/heads/main' && 'latest' || github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ env.API_IMAGE }}:latest\` (and short-sha)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ env.QUEUE_IMAGE }}:latest\` (and short-sha)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ env.PROXY_IMAGE }}:latest\` (and short-sha)" >> $GITHUB_STEP_SUMMARY
