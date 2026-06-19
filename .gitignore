@@ -159,3 +159,5 @@ data/
 api/data/
 queue/data/
 
+# helm
+helm/network-policies/
