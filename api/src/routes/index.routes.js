@@ -1,7 +1,7 @@
 /*!
  * Core.API.Router
  * File: index.routes.js
- * Copyright(c) 2021 Runtime Software Development Inc.
+ * Copyright(c) 2026 Runtime Software Development Inc.
  * MIT Licensed
  */
 
@@ -28,14 +28,10 @@ import pool from "../services/db.services.js";
  * defined models in the node_types relation.
  */
 
-async function initRoutes(routes, baseRouter) {
+async function initRoutes(client, routes, baseRouter) {
 
     // Generate secondary express router
     let router = express.Router({strict: true});
-
-    // get user permission settings
-    // NOTE: client undefined if connection fails.
-    const client = await pool.connect();
 
     try {
         let permissions = await schema.getPermissions(client);
@@ -102,8 +98,6 @@ async function initRoutes(routes, baseRouter) {
     } catch (err) {
         console.error(err)
         throw err;
-    } finally {
-        client.release(true);
     }
 }
 
@@ -112,68 +106,46 @@ async function initRoutes(routes, baseRouter) {
  */
 
 export default async function initRouter() {
-
-    // NOTE: client undefined if connection fails.
     const client = await pool.connect();
 
     try {
-
-        /**
-         * Create base router to add routes.
-         */
-
         const baseRouter = express.Router({strict: true});
 
-        // initialize main routes
-        await initRoutes(main, baseRouter);
+        // Pass client to sequential routes
+        await initRoutes(client, main, baseRouter);
+        await initRoutes(client, users, baseRouter);
+        await initRoutes(client, nodes, baseRouter);
+        await initRoutes(client, other, baseRouter);
+        await initRoutes(client, maps, baseRouter);
 
-        // initialize user routes
-        await initRoutes(users, baseRouter)
-
-        // initialize node routes
-        await initRoutes(nodes, baseRouter)
-
-        // initialize other routes
-        await initRoutes(other, baseRouter)
-
-        // initialize map routes
-        await initRoutes(maps, baseRouter)
-
-        // initialize model routes
+        // Pass client to parallel blocks safely
         const modelsRoutes = await models(client);
-        await Promise.all(modelsRoutes
-            .map(routes => {
-                return initRoutes(routes, baseRouter)
-            }));
+        await Promise.all(modelsRoutes.map(routes => {
+            return initRoutes(client, routes, baseRouter)
+        }));
 
-        // initialize metadata routes
         const metadataRoutes = await metadata(client);
-        await Promise.all(metadataRoutes
-            .map(routes => {
-                return initRoutes(routes, baseRouter)
-            }));
+        await Promise.all(metadataRoutes.map(routes => {
+            return initRoutes(client, routes, baseRouter)
+        }));
 
-        // initialize file routes
         const filesRoutes = await files(client);
-        await Promise.all(filesRoutes
-            .map(routes => {
-                return initRoutes(routes, baseRouter)
-            }));
+        await Promise.all(filesRoutes.map(routes => {
+            return initRoutes(client, routes, baseRouter)
+        }));
 
-        // initialize master routes
         const masterRoutes = await master(client);
-        await Promise.all(masterRoutes
-            .map(routes => {
-                return initRoutes(routes, baseRouter)
-            }));
+        await Promise.all(masterRoutes.map(routes => {
+            return initRoutes(client, routes, baseRouter)
+        }));
 
-        // return initialized router
         return baseRouter;
         
     } catch (err) {
         throw err
     }
     finally {
-        client.release(true);
+        // Change to false so the pool retains the connection socket!
+        client.release(false); 
     }
 }

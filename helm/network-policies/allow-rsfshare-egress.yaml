@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-rsfshare-egress
+  namespace: mlp-explorer-test
+spec:
+  podSelector: {} # Applies to all pods in the namespace
+  policyTypes:
+  - Egress
+  egress:
+  # Rule 1: Allow DNS Resolution queries
+  - to:
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Rule 2: Allow connection to the RSFShare NFS Storage Target
+  - to:
+    - ipBlock:
+        cidr: 142.104.55.14/32
+    ports:
+    - protocol: TCP
+      port: 111   # RPCbind
+    - protocol: TCP
+      port: 2049  # NFS
