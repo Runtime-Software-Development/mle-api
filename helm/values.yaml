@@ -18,8 +18,8 @@ mleAPI:
 
   image:
     repository: "ghcr.io/runtime-software-development/mle-api"
-    tag: "0a06ac1"
-    pullPolicy: IfNotPresent
+    tag: "latest"
+    pullPolicy: Always
 
   # GHCR package visibility is org-restricted — pull secret required.
   # kubectl create secret docker-registry ghcr-pull-secret \

@@ -131,7 +131,9 @@ createApp().then((app) => {
   });
 
   process.on('unhandledRejection', (reason, promise) => {
-    throw new Error(`Unhandled Rejection, ${promise}\nReason: ${reason}`);
+    console.error('❌ CRITICAL UNHANDLED REJECTION DETECTED:');
+    console.error(reason);
+    process.exit(1);
   });
 
 
