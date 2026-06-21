@@ -169,7 +169,7 @@ export const updateFileMetadata = async (metadata, fileType) => {
     } catch (err) {
         console.error(err)
     } finally {
-        client.release(true);
+        client.release();
     }
 }
 
@@ -189,6 +189,6 @@ export const getCameraMetadata = async () => {
     } catch (err) {
         console.error(err)
     } finally {
-        client.release(true);
+        client.release();
     }
 }

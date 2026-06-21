@@ -381,7 +381,7 @@ export const createNode = async function (item) {
         console.error(err)
         throw err;
     } finally {
-        client.release(true);
+        client.release();
     }
 };
 
@@ -476,7 +476,7 @@ export const getConstructors = async function () {
         console.error(err)
         throw err;
     } finally {
-        client.release(true);
+        client.release();
     }
 
 }

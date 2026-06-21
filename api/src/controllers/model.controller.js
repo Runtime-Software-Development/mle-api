@@ -173,7 +173,7 @@ export default function ModelController(nodeType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -213,7 +213,7 @@ export default function ModelController(nodeType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -301,7 +301,7 @@ export default function ModelController(nodeType) {
             await client.query('ROLLBACK');
             return next(err); // Pass error to Express error handler
         } finally {
-            client.release(true); // Always release the client
+            client.release(); // Always release the client
         }
     }
 
@@ -345,7 +345,7 @@ export default function ModelController(nodeType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -418,7 +418,7 @@ export default function ModelController(nodeType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -496,7 +496,7 @@ export default function ModelController(nodeType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -555,7 +555,7 @@ export default function ModelController(nodeType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 }

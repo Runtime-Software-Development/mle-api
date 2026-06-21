@@ -70,7 +70,7 @@ export const getGIS = async () => {
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        client.release(true);
+        client.release();
     }
 
 };

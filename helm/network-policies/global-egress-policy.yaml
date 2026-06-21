@@ -18,7 +18,11 @@ spec:
   - ports:
     - protocol: TCP
       port: 5432
-  # 3. Allow HTTP/S (Google, APIs, etc.)
+  # 3. Queue Comms (HTTP/S and Queue Port)
+  - ports:
+    - port: 3002
+      protocol: TCP
+  # 4. Allow HTTP/S Egress for API calls and other external comms
   - ports:
     - protocol: TCP
       port: 80

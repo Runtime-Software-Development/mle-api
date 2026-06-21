@@ -111,7 +111,7 @@ export const filterFilesByID = async (fileIDs, file_type, offset, limit) => {
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        client.release(true);
+        client.release();
     }
 };
 
@@ -277,7 +277,7 @@ export const selectAllByOwner = async (id) => {
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        client.release(true);
+        client.release();
     }
 };
 

@@ -57,7 +57,7 @@ export const show = async (_, res, next) => {
         return next(err);
     }
     finally {
-        client.release(true);
+        client.release();
     }
 };
 

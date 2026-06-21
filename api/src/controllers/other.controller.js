@@ -45,7 +45,7 @@ export const show = async (req, res, next) => {
         return next(err);
     }
     finally {
-        client.release(true);
+        client.release();
     }
 };
 
@@ -74,7 +74,7 @@ export const download = async (req, res, next) => {
         return next(err);
     }
     finally {
-        client.release(true);
+        client.release();
     }
 };
 

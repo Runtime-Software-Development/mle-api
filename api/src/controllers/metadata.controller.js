@@ -137,7 +137,7 @@ export default function MetadataController(metadataType) {
             return next(err);
         }
         finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -178,7 +178,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -228,7 +228,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -291,7 +291,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -338,7 +338,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -388,7 +388,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -470,7 +470,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -523,7 +523,7 @@ export default function MetadataController(metadataType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 

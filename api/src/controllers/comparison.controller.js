@@ -188,7 +188,7 @@ export default function ComparisonController() {
             return next(err);
         }
         finally {
-            client.release(true);
+            client.release();
         }
     }
 
@@ -275,7 +275,7 @@ export default function ComparisonController() {
             return next(err);
         }
         finally {
-            client.release(true);
+            client.release();
         }
     }
 
@@ -359,7 +359,7 @@ export default function ComparisonController() {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     }
 }

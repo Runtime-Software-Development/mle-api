@@ -212,7 +212,7 @@ export const updateGroup = async (newItems, modelType, ownerID, groupType, idKey
         await client.query('ROLLBACK');
         throw err;
     } finally {
-        client.release(true);
+        client.release();
     }
 };
 

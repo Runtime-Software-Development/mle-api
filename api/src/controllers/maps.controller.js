@@ -95,7 +95,7 @@ export const extractMapFeatures = async (req, res, next) => {
         console.error(err)
         return next(err);
     } finally {
-        client.release(true);
+        client.release();
     }
 };
 
@@ -151,7 +151,7 @@ export const createMapFeatures = async (req, res, next) => {
         console.error(err)
         return next(err);
     } finally {
-        client.release(true);
+        client.release();
     }
 };
 
@@ -190,7 +190,7 @@ export const getMapFeatures = async (req, res, next) => {
         console.error(err)
         return next(err);
     } finally {
-        client.release(true);
+        client.release();
     }
 };
 

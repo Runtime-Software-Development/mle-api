@@ -132,7 +132,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -183,7 +183,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -234,7 +234,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -317,7 +317,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -365,7 +365,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -436,7 +436,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -480,7 +480,7 @@ export default function FilesController(fileModelType) {
             console.error(err)
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -520,7 +520,7 @@ export default function FilesController(fileModelType) {
         } catch (err) {
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -544,7 +544,7 @@ export default function FilesController(fileModelType) {
         } catch (err) {
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
@@ -567,7 +567,7 @@ export default function FilesController(fileModelType) {
         } catch (err) {
             return next(err);
         } finally {
-            client.release(true);
+            client.release();
         }
     };
 
