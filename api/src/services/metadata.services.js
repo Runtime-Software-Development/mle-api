@@ -183,22 +183,19 @@ export const updateGroup = async (newItems, modelType, ownerID, groupType, idKey
         // get existing participants in group
         const oldItems = await getGroup(ownerID, modelType, groupType, client);
 
-        // delete existing participants not in updated participant list
-        const deleted = await Promise.all(
-            oldItems
-                .filter(pOld =>
-                    newItems.length === 0 || newItems.some(pNew =>
-                        parseInt(pOld[idKey]) !== parseInt(pNew[idKey])))
-                .map(async (pOld) => {
-                    return await remove(new ItemModel(pOld), client);
-                }));
+        // Delete/update sequentially: pg@9 forbids parallel client.query on one client.
+        const deleted = [];
+        const removableItems = oldItems.filter(pOld =>
+            newItems.length === 0 || newItems.some(pNew => parseInt(pOld[idKey]) !== parseInt(pNew[idKey]))
+        );
+        for (const oldItem of removableItems) {
+            deleted.push(await remove(new ItemModel(oldItem), client));
+        }
 
-        // update existing participants in updated participant list
-        const upserted = await Promise.all(
-            newItems
-                .map(async (pNew) => {
-                    return await insert(new ItemModel(pNew), true, client);
-                }));
+        const upserted = [];
+        for (const newItem of newItems) {
+            upserted.push(await insert(new ItemModel(newItem), true, client));
+        }
 
         await client.query('COMMIT');
 
@@ -454,12 +451,14 @@ export const getAttachedByNode = async function(node, client) {
     // get attached data and include labels
     const getAttachedData = async (id, model) => {
         const attachedItems = await selectByOwner(id, model, client) || [];
-        return await Promise.all(attachedItems.map( async (item) => {
-            return {
-                label: await getNodeLabel({id: item.id, type: model}, [], client),
+        const labeledItems = [];
+        for (const item of attachedItems) {
+            labeledItems.push({
+                label: await getNodeLabel({ id: item.id, type: model }, [], client),
                 data: item
-            }
-        }));
+            });
+        }
+        return labeledItems;
     }
 
     return {

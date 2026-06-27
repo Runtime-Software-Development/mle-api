@@ -130,24 +130,22 @@ export default function ComparisonController() {
                     ? await metaserve.getModernCapturesByStation(station, client)
                     : await metaserve.getHistoricCapturesByStation(station, client);
 
-                // get capture metadata available for comparison
-                availableCaptures = await Promise.all(
-                    (availableCaptures || [])
-                        .map(async (capture) => {
-                            const captureNode = await nserve.select(capture.nodes_id, client);
-                            const {id=null, type=null} = captureNode || {};
-                            return await nserve.get(id, type, client);
-                        })
-                );
+                // get capture metadata available for comparison sequentially
+                const availableCaptureData = [];
+                for (const capture of (availableCaptures || [])) {
+                    const captureNode = await nserve.select(capture.nodes_id, client);
+                    const { id = null, type = null } = captureNode || {};
+                    availableCaptureData.push(await nserve.get(id, type, client));
+                }
+                availableCaptures = availableCaptureData;
 
                 // get captures already selected for comparison
-                selectedCaptures = await Promise.all(
-                    (availableCaptures || [])
-                        .map(async (capture) => {
-                            const {node=null} = capture || {};
-                            return await getComparisonsByCapture(node, client) || [];
-                        })
-                );
+                const selectedCaptureSets = [];
+                for (const capture of (availableCaptures || [])) {
+                    const { node = null } = capture || {};
+                    selectedCaptureSets.push(await getComparisonsByCapture(node, client) || []);
+                }
+                selectedCaptures = selectedCaptureSets;
 
                 // reduce selected captures to array of node IDs
                 selectedCaptures = selectedCaptures.reduce((o, captures) => {
@@ -244,13 +242,11 @@ export default function ComparisonController() {
                     ? await metaserve.getHistoricCapturesByStation(station, client)
                     : await metaserve.getModernCapturesByStation(station, client)
 
-                // append file data
-                const captureData = await Promise.all(
-                    (captures || [])
-                        .map(async (capture) => {
-                            return await nserve.get(capture.id, capture.type, client);
-                        })
-                );
+                // append file data sequentially to avoid overlapping client queries
+                const captureData = [];
+                for (const capture of (captures || [])) {
+                    captureData.push(await nserve.get(capture.id, capture.type, client));
+                }
 
                 // send form data response
                 // - include possible historic images for alignment (mastering)

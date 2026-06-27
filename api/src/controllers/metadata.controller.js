@@ -430,7 +430,7 @@ export default function MetadataController(metadataType) {
             // process each group type
             const result = [];
             const groupTypes = await getParticipantGroupTypes(client);
-            await Promise.all(groupTypes.map( async(groupType) => {
+            for (const groupType of groupTypes) {
                 // Create new participant groups in request
                 // - creates new group for participants sent in request
                 // - OR adds participants to existing groups
@@ -452,7 +452,7 @@ export default function MetadataController(metadataType) {
                     // remove the group
                     result.push(await metaserve.removeGroup(ownerData.id, metadataType, groupType, client));
                 }
-            }));
+            }
 
             // send create response
             res.status(200).json(
@@ -497,14 +497,14 @@ export default function MetadataController(metadataType) {
             // remove all participants in each group
             let result;
             const groupTypes = await getParticipantGroupTypes(client);
-            await Promise.all(groupTypes.map( async(groupType) => {
+            for (const groupType of groupTypes) {
                 await metaserve.updateGroup([], metadataModel.name, ownerID, groupType, 'participant_id');
-            }));
+            }
 
             // remove the groups
-            await Promise.all(groupTypes.map( async(groupType) => {
+            for (const groupType of groupTypes) {
                 result = await metaserve.removeGroup(ownerID, metadataType, groupType, client);
-            }));
+            }
 
 
             // send response

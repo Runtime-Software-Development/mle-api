@@ -148,13 +148,14 @@ export default function ModelController(nodeType) {
 
             // append second-level dependents (if node depth is above threshold)
             if (modelTemplate.depth > 1) {
-                itemData.dependents = await Promise.all(
-                    itemData.dependents.map(async (dependent) => {
-                        const { node = {} } = dependent || {};
-                        dependent.dependents = await nserve.selectByOwner(node.id, client);
-                        dependent.attached = await metaserve.getAttachedByNode(node, client);
-                        return dependent;
-                    }));
+                const enrichedDependents = [];
+                for (const dependent of itemData.dependents) {
+                    const { node = {} } = dependent || {};
+                    dependent.dependents = await nserve.selectByOwner(node.id, client);
+                    dependent.attached = await metaserve.getAttachedByNode(node, client);
+                    enrichedDependents.push(dependent);
+                }
+                itemData.dependents = enrichedDependents;
             }
 
             // include attached metadata

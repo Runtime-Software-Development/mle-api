@@ -213,16 +213,15 @@ export default function FilesController(fileModelType) {
                     return sanitize(id, 'integer');
                 });
 
-            // get filtered results
-            const resultData = await Promise.all((
-                fileIDs || []).map(async (id) => {
-                    const {file_type} = await fserve.select(id, client);
-                    const {results} = await fserve.filterFilesByID([id], file_type, 0, 100);
-                    const rs = results[0];
-                    // include image urls
-                    rs.url = fserve.getImageURL(file_type, rs);
-                    return rs;
-            }));
+            // get filtered results sequentially to avoid overlapping client queries
+            const resultData = [];
+            for (const id of (fileIDs || [])) {
+                const { file_type } = await fserve.select(id, client);
+                const { results } = await fserve.filterFilesByID([id], file_type, 0, 100);
+                const rs = results[0];
+                rs.url = fserve.getImageURL(file_type, rs);
+                resultData.push(rs);
+            }
 
             res.status(200).json(
                 prepare({

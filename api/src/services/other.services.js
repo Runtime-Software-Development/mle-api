@@ -36,12 +36,13 @@ export const getShowcaseCaptures = async (client) => {
         ? node.rows
         : null;
 
-    // return captures with metadata
-    return await Promise.all(
-        (showcaseCaptures || []).map(async (capture) => {
-            const { id = null, type=null } = capture || {};
-            return await nserve.get(id, type, client);
-        }));
+    // return captures with metadata sequentially to avoid overlapping client queries
+    const capturesWithMetadata = [];
+    for (const capture of (showcaseCaptures || [])) {
+        const { id = null, type = null } = capture || {};
+        capturesWithMetadata.push(await nserve.get(id, type, client));
+    }
+    return capturesWithMetadata;
 };
 
 

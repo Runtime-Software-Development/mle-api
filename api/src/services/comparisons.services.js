@@ -42,15 +42,14 @@ export const filterComparisonsByID = async (comparisonIDs, offset, limit) => {
 
         const count = comparisons.length > 0 ? comparisons[0].total : 0;
 
-        // append model data for modern/historic captures
-        let items = await Promise.all(
-            comparisons.map(async (comparison) => {
-                return {
-                    historic_capture: await get(comparison.historic_captures, 'historic_captures', client),
-                    modern_capture: await get(comparison.modern_captures, 'modern_captures', client)
-                }
-            })
-        );
+        // append model data sequentially to avoid overlapping queries on one client
+        const items = [];
+        for (const comparison of comparisons) {
+            items.push({
+                historic_capture: await get(comparison.historic_captures, 'historic_captures', client),
+                modern_capture: await get(comparison.modern_captures, 'modern_captures', client)
+            });
+        }
 
         // end transaction
         await client.query('COMMIT');
@@ -88,23 +87,22 @@ export const updateComparisons = async (node, comparedCaptureIDs, client ) => {
     // delete existing comparisons for capture
     await deleteComparisons(node, client);
 
-    // load comparison capture(s) node data and update comparisons table
-    return await Promise.all(
-        comparedCaptureIDs.map( async(captureID) => {
-            const comparedCapture = await nserve.select(captureID, client);
-            // check that image pair(s) are sorted and therefore comparable
-            if (await isComparable(
-                node.type === 'historic_captures' ? node : comparedCapture,
-                node.type === 'historic_captures' ? comparedCapture : node
-            )) {
-                await upsertComparison(
-                    node.type === 'historic_captures' ? node.id : captureID,
-                    node.type === 'historic_captures' ? captureID : node.id,
-                    client);
-            }
-            return comparedCapture;
-        })
-    );
+    // load and upsert sequentially to avoid concurrent client.query on one client
+    const comparedCaptures = [];
+    for (const captureID of comparedCaptureIDs) {
+        const comparedCapture = await nserve.select(captureID, client);
+        if (await isComparable(
+            node.type === 'historic_captures' ? node : comparedCapture,
+            node.type === 'historic_captures' ? comparedCapture : node
+        )) {
+            await upsertComparison(
+                node.type === 'historic_captures' ? node.id : captureID,
+                node.type === 'historic_captures' ? captureID : node.id,
+                client);
+        }
+        comparedCaptures.push(comparedCapture);
+    }
+    return comparedCaptures;
 }
 
 /**
@@ -209,22 +207,20 @@ export const getComparisonsMetadata = async (node, client) => {
                 && res.rows.length > 0 ? res.rows : [];
             });
 
-        // get associated capture metadata
-        // append full data for each returned capture
-        return await Promise.all(
-            (comparisons || [])
-                // .filter(comparison => comparison)
-                .map(async (comparison) => {
-                    const historic_data = await nserve.get(
-                        comparison.historic_captures, 'historic_captures', client);
-                    const modern_data = await nserve.get(
-                        comparison.modern_captures, 'modern_captures', client);
-                    return {
-                        id: comparison.id,
-                        historic_captures: historic_data,
-                        modern_captures: modern_data
-                    };
-                }));
+        // append full data sequentially to avoid overlapping queries on one client
+        const capturePairs = [];
+        for (const comparison of (comparisons || [])) {
+            const historic_data = await nserve.get(
+                comparison.historic_captures, 'historic_captures', client);
+            const modern_data = await nserve.get(
+                comparison.modern_captures, 'modern_captures', client);
+            capturePairs.push({
+                id: comparison.id,
+                historic_captures: historic_data,
+                modern_captures: modern_data
+            });
+        }
+        return capturePairs;
     }
     return [];
 };

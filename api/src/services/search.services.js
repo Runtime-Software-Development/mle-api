@@ -177,19 +177,17 @@ export const fulltext = async (q, offset, limit, filter) => {
             }
         }
 
-        // collate results for all searchable tables
-        await Promise.all(
-            Object.keys(searchable)
-                .filter(tbl => filter.length === 0 || filter.includes(tbl))
-                .map(async (tbl) => {
-                    let { sql, data } = queryBuilders.hasOwnProperty(searchable[tbl].type)
-                        ? queryBuilders[searchable[tbl].type](tbl)
-                        : queryBuilders.default(tbl);
-                    results[tbl] = await client.query(sql, data)
-                        .then(res => {
-                            return res.rows;
-                        });
-                }));
+        // Collate results sequentially: pg@9 removes concurrent query execution on one client.
+        const selectedTables = Object.keys(searchable)
+            .filter(tbl => filter.length === 0 || filter.includes(tbl));
+
+        for (const tbl of selectedTables) {
+            let { sql, data } = queryBuilders.hasOwnProperty(searchable[tbl].type)
+                ? queryBuilders[searchable[tbl].type](tbl)
+                : queryBuilders.default(tbl);
+            const res = await client.query(sql, data);
+            results[tbl] = res.rows;
+        }
 
         // end transaction
         await client.query('COMMIT');

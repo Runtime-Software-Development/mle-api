@@ -152,21 +152,20 @@ export const getTree = async function(model) {
                 return res.rows
             });
 
-        // append model data and dependents (child nodes)
-        let items = await Promise.all(
-            nodes.map(async (node) => {
-                const metadata = await selectByNode(node, client);
-                return {
-                    id: node?.id,
-                    node: node,
-                    label: await mserve.getNodeLabel(node, [], client),
-                    type: node.type,
-                    metadata: metadata,
-                    hasDependents: await hasDependents(node.id, client) || false,
-                    status: await getStatus(node, client)
-                }
-            })
-        );
+        // Append model data sequentially to avoid overlapping queries on one client.
+        const items = [];
+        for (const node of nodes) {
+            const metadata = await selectByNode(node, client);
+            items.push({
+                id: node?.id,
+                node: node,
+                label: await mserve.getNodeLabel(node, [], client),
+                type: node.type,
+                metadata: metadata,
+                hasDependents: await hasDependents(node.id, client) || false,
+                status: await getStatus(node, client)
+            });
+        }
 
         // end transaction
         await client.query('COMMIT');
@@ -203,24 +202,25 @@ export const selectByOwner = async (id, client) => {
             return res.rows
         });
 
-    // append full data for each dependent node
-    nodes = await Promise.all(
-        nodes.map(async (node) => {
-            const metadata = await selectByNode(node, client);
-            const files = await fserve.selectByOwner(node.id, client);
-            return {
-                id: node?.id,
-                model: node.type,
-                node: node,
-                label: await mserve.getNodeLabel(node, [], client),
-                type: node.type,
-                metadata: metadata,
-                files: files,
-                refImage: getCaptureImage(files, node),
-                hasDependents: await hasDependents(node.id, client),
-                status: await getStatus(node, client)
-            }
-    }));
+    // append full data sequentially to avoid overlapping queries on one client
+    const enrichedNodes = [];
+    for (const node of nodes) {
+        const metadata = await selectByNode(node, client);
+        const files = await fserve.selectByOwner(node.id, client);
+        enrichedNodes.push({
+            id: node?.id,
+            model: node.type,
+            node: node,
+            label: await mserve.getNodeLabel(node, [], client),
+            type: node.type,
+            metadata: metadata,
+            files: files,
+            refImage: getCaptureImage(files, node),
+            hasDependents: await hasDependents(node.id, client),
+            status: await getStatus(node, client)
+        });
+    }
+    nodes = enrichedNodes;
 
     // return nodes
     return nodes;
@@ -256,12 +256,11 @@ export const filterNodesByID = async (nodeIDs, offset, limit) => {
 
         const count = nodes.length > 0 ? nodes[0].total : 0;
 
-        // append model data and dependents (child nodes)
-        let items = await Promise.all(
-            nodes.map(async (node) => {
-                return await get(node.id, node.type, client);
-            })
-        );
+        // append model data sequentially to avoid concurrent client.query usage
+        const items = [];
+        for (const node of nodes) {
+            items.push(await get(node.id, node.type, client));
+        }
 
         // end transaction
         await client.query('COMMIT');

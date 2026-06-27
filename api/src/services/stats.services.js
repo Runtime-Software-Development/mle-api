@@ -29,18 +29,20 @@ export const summary = async () => {
 
     try {
         // get stats on node types
-        return await Promise.all(
-            nodeTypes.map( async (type) => {
-                const {sql, data} = queries.summary(type);
-                const response = await client.query(sql, data);
-                return response.hasOwnProperty('rows') && response.rows.length > 0
+        const summaries = [];
+        for (const type of nodeTypes) {
+            const { sql, data } = queries.summary(type);
+            const response = await client.query(sql, data);
+            summaries.push(
+                response.hasOwnProperty('rows') && response.rows.length > 0
                     ? {
                         type: type,
                         count: response.rows[0].count
-                      }
-                    : null;
-            })
-        );
+                    }
+                    : null
+            );
+        }
+        return summaries;
     } catch (err) {
         throw err;
     } finally {

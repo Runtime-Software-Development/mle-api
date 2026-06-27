@@ -174,23 +174,21 @@ export const selectByOwner = async (id, client) => {
     const { sql, data } = queries.files.selectByOwner(id);
     const { rows = [] } = await client.query(sql, data);
 
-    // append full data for each dependent node
-    let files = await Promise.all(
-        rows.map(
-            async (file) => {
-                const { file_type = '', filename = '' } = file || {};
-                const fileMetadata = await selectByFile(file, client);
-                const { type = '', secure_token = '' } = fileMetadata || {};
-                return {
-                    file: file,
-                    label: await getFileLabel(file, client),
-                    filename: (filename || '').replace(`_${secure_token}`, ''),
-                    metadata: fileMetadata,
-                    metadata_type: await metaserve.selectByName('metadata_file_types', type, client),
-                    url: getImageURL(file_type, fileMetadata),
-                };
-            }),
-    );
+    // append full data sequentially to avoid overlapping queries on one client
+    const files = [];
+    for (const file of rows) {
+        const { file_type = '', filename = '' } = file || {};
+        const fileMetadata = await selectByFile(file, client);
+        const { type = '', secure_token = '' } = fileMetadata || {};
+        files.push({
+            file: file,
+            label: await getFileLabel(file, client),
+            filename: (filename || '').replace(`_${secure_token}`, ''),
+            metadata: fileMetadata,
+            metadata_type: await metaserve.selectByName('metadata_file_types', type, client),
+            url: getImageURL(file_type, fileMetadata),
+        });
+    }
 
     // group files by type
     return files.reduce((o, f) => {
@@ -390,9 +388,9 @@ export const upload = async (files, owner, client) => {
             return null;
         }
 
-        // saves attached files and inserts metadata record for each
-        return await Promise
-            .all(files.map(async ({ file, file_model, file_type }) => {
+        // Save sequentially to avoid concurrent queries on one transaction client.
+        const uploaded = [];
+        for (const { file, file_model, file_type } of files) {
 
                 console.log(`Processing file: ${file.getValue('filename')} of type ${file_type} for file model ${file_model.name}`);
 
@@ -438,7 +436,15 @@ export const upload = async (files, owner, client) => {
                     // Decide how to handle this: rethrow, log, return an error status
                     throw httpError; // Rethrow to propagate failure up
                 }
-            }));
+
+                uploaded.push({
+                    file,
+                    file_model,
+                    file_type,
+                });
+        }
+
+        return uploaded;
 
     } catch (err) {
         throw err;
@@ -663,52 +669,37 @@ export const getFilePath = (file, version = 'medium') => {
  */
 
 export const moveFiles = async (files, node, client) => {
-    await Promise.all(
-        // handle move for each file type
-        Object.keys(files).map(async (fileType) => {
-            await Promise.all(
-                // handle move for each file
-                files[fileType].map(async (fileData) => {
-                    const { metadata = {}, file = {} } = fileData || {};
-                    const { image_state = '', secure_token = '' } = metadata || {};
-                    const { filename = '', file_type = '' } = file || {};
+    for (const fileType of Object.keys(files)) {
+        for (const fileData of files[fileType]) {
+            const { metadata = {}, file = {} } = fileData || {};
+            const { image_state = '', secure_token = '' } = metadata || {};
+            const { filename = '', file_type = '' } = file || {};
 
-                    // insert token into filename
-                    const tokenizedFilename = [
-                        filename.slice(0, filename.lastIndexOf('.')),
-                        secure_token,
-                        filename.slice(filename.lastIndexOf('.'))
-                    ].join('');
+            const tokenizedFilename = [
+                filename.slice(0, filename.lastIndexOf('.')),
+                secure_token,
+                filename.slice(filename.lastIndexOf('.'))
+            ].join('');
 
-                    // check node has file directory path
-                    if (!node.getValue('fs_path') || !file.fs_path) return null;
+            if (!node.getValue('fs_path') || !file.fs_path) continue;
 
-                    // get the old file path
-                    const oldFileUploadPath = path.join(process.env.MLE_UPLOAD_DIR, file.fs_path);
-                    // create new directory and file path (create directory if does not exist)
-                    const newFileNodePath = path.join(node.getValue('fs_path'), image_state || file_type);
-                    const newFileUploadDir = path.join(process.env.MLE_UPLOAD_DIR, newFileNodePath);
-                    await mkdir(newFileUploadDir, { recursive: true });
-                    // move file to new directory path
-                    const newFileUploadPath = path.join(newFileUploadDir, tokenizedFilename);
-                    // rename file path (if exists)
-                    if (fs.existsSync(oldFileUploadPath)) await rename(oldFileUploadPath, newFileUploadPath);
+            const oldFileUploadPath = path.join(process.env.MLE_UPLOAD_DIR, file.fs_path);
+            const newFileNodePath = path.join(node.getValue('fs_path'), image_state || file_type);
+            const newFileUploadDir = path.join(process.env.MLE_UPLOAD_DIR, newFileNodePath);
+            await mkdir(newFileUploadDir, { recursive: true });
+            const newFileUploadPath = path.join(newFileUploadDir, tokenizedFilename);
+            if (fs.existsSync(oldFileUploadPath)) await rename(oldFileUploadPath, newFileUploadPath);
 
-                    // update owner in file metadata model
-                    const FileModel = await cserve.create(file_type);
-                    const fileMetadata = new FileModel(metadata);
-                    fileMetadata.ownerID = node.id;
+            const FileModel = await cserve.create(file_type);
+            const fileMetadata = new FileModel(metadata);
+            fileMetadata.ownerID = node.id;
 
-                    // updated file path in file model
-                    let fileNode = await cserve.createFile(file);
-                    fileNode.setValue('fs_path', path.join(newFileNodePath, tokenizedFilename));
+            let fileNode = await cserve.createFile(file);
+            fileNode.setValue('fs_path', path.join(newFileNodePath, tokenizedFilename));
 
-                    // create file node instance from file model instance
-                    await update(fileNode, fileMetadata, client);
-                })
-            );
-        })
-    );
+            await update(fileNode, fileMetadata, client);
+        }
+    }
 }
 
 /**
@@ -721,15 +712,11 @@ export const moveFiles = async (files, node, client) => {
  */
 
 export const removeAll = async (files = null, client) => {
-    await Promise.all(
-        Object.keys(files).map(
-            async (file_type) => {
-                await Promise.all(
-                    files[file_type].map(async (file) => {
-                        return await remove(file, client);
-                    }));
-            })
-    );
+    for (const file_type of Object.keys(files)) {
+        for (const file of files[file_type]) {
+            await remove(file, client);
+        }
+    }
 }
 
 /**
