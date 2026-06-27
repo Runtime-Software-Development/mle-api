@@ -147,7 +147,19 @@ export const extractImageInfo = async (file, file_model) => {
     const TMP_DIR = process.env.MLE_TMP_DIR;
     const src = path.join(TMP_DIR || '', file?.filename_tmp);
     const fileType = file?.file_type;
-    const cameras = await getCameraMetadata();
+    const withTimeout = (promise, timeoutMs, label) => {
+        let timer;
+        const timeoutPromise = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+        });
+        return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+    };
+
+    const cameras = await withTimeout(getCameraMetadata(), 3000, 'camera metadata query')
+        .catch((error) => {
+            console.warn('[WARN] Camera metadata lookup failed or timed out:', error.message);
+            return [];
+        });
 
     /**
      * Converts an ExifDateTime string to a JavaScript Date object.
@@ -175,7 +187,7 @@ export const extractImageInfo = async (file, file_model) => {
     const exiftool = new ExifTool({ taskTimeoutMillis: 5000 });
     try {
         // Start the ExifTool process
-        const exifTags = await exiftool.read(src);
+        const exifTags = await withTimeout(exiftool.read(src), 7000, 'EXIF read');
 
         // Debug
         console.log(`[INFO] EXIF metadata for file ${file?.filename}:`, exifTags);
@@ -217,7 +229,9 @@ export const extractImageInfo = async (file, file_model) => {
         console.warn('[WARN] EXIF metadata extraction failed:', error);
     }
     finally {
-        await exiftool.end();
+        await withTimeout(exiftool.end(), 2000, 'EXIF shutdown').catch((error) => {
+            console.warn('[WARN] EXIF process shutdown timed out:', error.message);
+        });
     }
 };
 

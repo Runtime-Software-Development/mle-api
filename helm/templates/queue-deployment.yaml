@@ -48,8 +48,6 @@ spec:
               value: {{ .Values.redis.service.port | quote }}
             - name: MLE_QUEUE_PORT
               value: {{ .Values.queue.service.port | quote }}
-            - name: MLE_QUEUE_NAME
-              value: "mle-queue"
             {{- with .Values.queue.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
