@@ -9,7 +9,7 @@
 'use strict'; 
 
 import path from 'path';
-import { uploadImage } from './services.js';
+import { processImageAssets, processImageMetadata } from './services.js';
 import { copyFile } from './utils.js';  
 import fs from 'fs';
 
@@ -105,7 +105,7 @@ import fs from 'fs';
  * 
  * 
  */
-export const processJob = async (job) => {
+export const processJob = async (job, queue) => {
     try {
         // Extract job data
         const { file, file_model, owner, process_type } = job.data;
@@ -146,13 +146,33 @@ export const processJob = async (job) => {
         }
 
         switch (processType) {
+            case 'metadata_extract':
+                result = await processImageMetadata(file, file_model, {
+                    sourcePath: path.join(process.env.MLE_UPLOAD_DIR, file?.fs_path)
+                });
+                console.log(`[WORKER] Metadata extraction for job ${job.id} completed.`);
+                break;
             case 'supplemental_images':
             case 'historic_images':
             case 'modern_images':
-                // Assuming uploadImage is an async function that handles its own errors or throws them
-                result = await uploadImage(file, file_model, owner);
+                // Copy and resize image assets first so uploads finish quickly.
+                result = await processImageAssets(file, file_model);
+                if (queue) {
+                    await queue.add(
+                        {
+                            ...job.data,
+                            process_type: 'metadata_extract'
+                        },
+                        {
+                            attempts: 5,
+                            backoff: {
+                                type: 'exponential',
+                                delay: 2000,
+                            }
+                        }
+                    );
+                }
                 console.log(`[WORKER] Image upload for job ${job.id} completed. Result:`, result);
-                // The 'file', 'file_model', 'owner' objects might be large, consider logging only relevant parts or hashing for production
                 console.log("Job data for uploadImage:", { file: file.filename, file_model: file_model.image_state, owner: owner.owner_id });
                 break;
             default:

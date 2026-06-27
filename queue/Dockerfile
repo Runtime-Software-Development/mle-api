@@ -1,14 +1,11 @@
 # Use specific Node.js version
-FROM node:22-alpine
+FROM node:24-bookworm-slim
 
 # Set working directory inside the container
 WORKDIR /usr/src/app
 
 # Copy package.json and package-lock.json first to leverage Docker's cache
 COPY package*.json ./
-
-# Install a version of sharp compatible with Node 14
-RUN npm install sharp@0.32.2
 
 # Install ALL dependencies (including devDependencies)
 RUN npm install

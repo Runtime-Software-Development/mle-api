@@ -342,7 +342,7 @@ queue.process(concurrentJobs, async (job) => {
     try {
         console.log(`[PROCESSING] JOB ${job.id} / TYPE ${job.name} - ${new Date(job.timestamp).toLocaleString()}`);
         // Process the job using the worker function
-        await processJob(job);
+        await processJob(job, queue);
     } catch (error) {
         console.error('[ERROR] Error processing job:', error);
         // Bull automatically handles throwing an error to mark the job as failed and retry

@@ -9,6 +9,7 @@
 
 import { imageSizes } from './services.js';
 import { ExifTool } from 'exiftool-vendored';
+import * as exifr from 'exifr';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
@@ -142,10 +143,10 @@ export const getImageURL = (type = '', data = {}) => {
  * @returns {Promise<void>} - Promise resolving when metadata extraction is complete.
  */
 
-export const extractImageInfo = async (file, file_model) => {
+export const extractImageInfo = async (file, file_model, options = {}) => {
     // Define the tmp file source path and file type
     const TMP_DIR = process.env.MLE_TMP_DIR;
-    const src = path.join(TMP_DIR || '', file?.filename_tmp);
+    const src = options?.sourcePath || path.join(TMP_DIR || '', file?.filename_tmp);
     const fileType = file?.file_type;
     const withTimeout = (promise, timeoutMs, label) => {
         let timer;
@@ -184,6 +185,37 @@ export const extractImageInfo = async (file, file_model) => {
         }
     };
 
+    const applyExifTags = (exifTags = {}) => {
+        convertExifDateTime(exifTags?.CreateDate || exifTags?.DateTimeOriginal || exifTags?.DateTime);
+        file_model.mimetype = exifTags?.MIMEType || exifTags?.mimeType || file_model.mimetype;
+        file_model.format = exifTags?.FileType || exifTags?.fileType || file_model.format || 'raw';
+        file_model.x_dim = exifTags?.ImageWidth || exifTags?.ExifImageWidth || exifTags?.width || file_model.x_dim;
+        file_model.y_dim = exifTags?.ImageHeight || exifTags?.ExifImageHeight || exifTags?.height || file_model.y_dim;
+        file_model.channels = (exifTags?.ColorSpaceData === 'RGB' || exifTags?.ColorSpace === 'sRGB')
+            ? 3
+            : file_model.channels || 1;
+        file_model.density = sanitize(exifTags?.BitDepth || exifTags?.bitsPerSample, 'integer');
+        file_model.shutter_speed = sanitize(exifTags?.ExposureTime || exifTags?.exposureTime, 'float');
+        file_model.f_stop = sanitize(exifTags?.Fnumber || exifTags?.fNumber, 'float');
+        file_model.iso = sanitize(exifTags?.ISO || exifTags?.iso, 'integer');
+        file_model.focal_length = sanitize(exifTags?.FocalLength || exifTags?.focalLength, 'float');
+        file_model.lat = sanitize(exifTags?.GPSLatitude || exifTags?.latitude, 'float');
+        file_model.lng = sanitize(exifTags?.GPSLongitude || exifTags?.longitude, 'float');
+        file_model.elev = sanitize(exifTags?.GPSAltitude || exifTags?.altitude, 'float');
+
+        let matchedCamera = null;
+        const modelValue = exifTags?.Model || exifTags?.model;
+        if (modelValue && Array.isArray(cameras)) {
+            const normalizedModel = typeof modelValue === 'string' && modelValue.toLowerCase().replace(/[^a-z0-9]/g, '');
+            matchedCamera = (cameras || []).find(camera => {
+                if (typeof camera.label !== 'string') return false;
+                const normalizedLabel = camera.label.toLowerCase().replace(/[^a-z0-9]/g, '');
+                return normalizedModel.includes(normalizedLabel) || normalizedLabel.includes(normalizedModel);
+            });
+        }
+        file_model.cameras_id = matchedCamera?.value || file_model.cameras_id || null;
+    };
+
     const exiftool = new ExifTool({ taskTimeoutMillis: 5000 });
     try {
         // Start the ExifTool process
@@ -191,42 +223,29 @@ export const extractImageInfo = async (file, file_model) => {
 
         // Debug
         console.log(`[INFO] EXIF metadata for file ${file?.filename}:`, exifTags);
-
-        convertExifDateTime(exifTags?.CreateDate);
-        file_model.mimetype = exifTags?.MIMEType;
-        file_model.format = exifTags?.FileType || 'raw';
-        file_model.x_dim = exifTags?.ImageWidth;
-        file_model.y_dim = exifTags?.ImageHeight;
-        file_model.channels = exifTags?.ColorSpaceData === 'RGB' ? 3 : 1;
-        file_model.density = sanitize(exifTags?.BitDepth, 'integer');
-        file_model.shutter_speed = sanitize(exifTags?.ExposureTime, 'float');
-        file_model.f_stop = sanitize(exifTags?.Fnumber, 'float');
-        file_model.iso = sanitize(exifTags?.ISO, 'integer');
-        file_model.focal_length = sanitize(exifTags?.FocalLength, 'float');
-        file_model.lat = sanitize(exifTags?.GPSLatitude, 'float');
-        file_model.lng = sanitize(exifTags?.GPSLongitude, 'float');
-        file_model.elev = sanitize(exifTags?.GPSAltitude, 'float');
-
-        // Find matched camera
-        let matchedCamera = null;
-        if (exifTags?.Model && Array.isArray(cameras)) {
-            const normalizedModel = typeof exifTags?.Model === 'string' && exifTags?.Model.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            matchedCamera = (cameras || []).find(camera => {
-                // Ensure camera.label is a string before normalizing
-                if (typeof camera.label !== 'string') {
-                    return false;
-                }
-                const normalizedLabel = typeof camera?.label === 'string' && camera?.label.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-                return  normalizedModel.includes(normalizedLabel) || normalizedLabel.includes(normalizedModel);
-            });
-        }
-        // set cameras_id to the matched camera
-        file_model.cameras_id = matchedCamera?.value || null;
+        applyExifTags(exifTags);
 
     } catch (error) {
         console.warn('[WARN] EXIF metadata extraction failed:', error);
+        try {
+            // Backup parser path for resilience (best-effort for IIQ/TIFF/JPEG metadata).
+            const fallbackTags = await withTimeout(
+                exifr.parse(src, {
+                    tiff: true,
+                    xmp: true,
+                    icc: true,
+                    gps: true,
+                }),
+                3000,
+                'EXIF fallback read'
+            );
+            if (fallbackTags) {
+                console.log('[INFO] Applied EXIF fallback metadata parser.');
+                applyExifTags(fallbackTags);
+            }
+        } catch (fallbackError) {
+            console.warn('[WARN] EXIF fallback parser failed:', fallbackError.message);
+        }
     }
     finally {
         await withTimeout(exiftool.end(), 2000, 'EXIF shutdown').catch((error) => {

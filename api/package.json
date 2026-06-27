@@ -13,7 +13,7 @@
   "repository": "https://github.com/Runtime-Software-Development/mle-api",
   "bugs": "https://github.com/Runtime-Software-Development/mle-api/issues",
   "engines": {
-    "node": "22.1.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "start": "node ./server.js",
@@ -23,40 +23,40 @@
     "test": "mocha test/index.tests.js"
   },
   "dependencies": {
-    "@mapbox/togeojson": "^0.16.0",
+    "@mapbox/togeojson": "^0.16.2",
     "abort-controller": "^3.0.0",
-    "adm-zip": "^0.5.16",
-    "archiver": "^7.0.1",
+    "adm-zip": "^0.5.17",
+    "archiver": "^8.0.0",
     "bull": "^4.16.5",
     "busboy": "^1.6.0",
     "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
+    "cors": "^2.8.6",
     "dcraw": "^1.0.3",
-    "dotenv": "^17.2.3",
-    "exiftool-vendored": "^31.2.0",
-    "express": "^5.1.0",
+    "dotenv": "^17.4.2",
+    "exiftool-vendored": "^36.0.0",
+    "express": "^5.2.1",
     "geojson": "^0.5.0",
-    "helmet": "^8.1.0",
-    "jsdom": "^27.0.1",
-    "jsonwebtoken": "^9.0.2",
+    "helmet": "^8.2.0",
+    "jsdom": "^29.1.1",
+    "jsonwebtoken": "^9.0.3",
     "jszip": "^3.10.1",
     "jszip-utils": "^0.1.0",
-    "mathjs": "^15.0.0",
-    "morgan": "^1.10.1",
+    "mathjs": "^15.2.0",
+    "morgan": "^1.11.0",
     "node-fetch": "^3.3.2",
-    "pg": "^8.16.3",
-    "pm2": "^6.0.13",
-    "redis": "^5.9.0",
-    "rotating-file-stream": "^3.2.7",
-    "sharp": "^0.34.4",
+    "pg": "^8.22.0",
+    "pm2": "^7.0.1",
+    "redis": "^6.0.1",
+    "rotating-file-stream": "^3.2.9",
+    "sharp": "^0.35.2",
     "st": "^3.0.3",
     "uid-safe": "^2.1.5"
   },
   "devDependencies": {
-    "chai": "^4.3.4",
-    "form-data": "^4.0.1",
-    "mocha": "^10.0.0",
-    "nodemon": "^3.1.7",
-    "supertest": "^7.0.0"
+    "chai": "^6.2.2",
+    "form-data": "^4.0.6",
+    "mocha": "^11.7.6",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   }
 }

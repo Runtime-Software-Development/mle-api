@@ -28,7 +28,7 @@ export const imageSizes = {
  * @param {Object} client - Database client.
  * @returns {Promise<Object>} - Promise resolving to processing results.
  */
-export const uploadImage = async (file, file_model) => {
+export const processImageAssets = async (file, file_model) => {
     try {
         const secureToken = file_model?.secure_token || '';
         const rawFilePath = file?.fs_path;
@@ -58,12 +58,6 @@ export const uploadImage = async (file, file_model) => {
         // Path to source temporary file
         const src = path.join(process.env.MLE_TMP_DIR, file?.filename_tmp);
 
-        // Extract image metadata and save it to the file model
-        await extractImageInfo(file, file_model, {});
-
-        // Store the metadata in database record
-        await updateFileMetadata(file_model, file?.file_type);
-
         // Copy image original and downscaled versions to MLP library
         await copyImageTo(src, versions.raw);
         await copyImageTo(src, versions.medium);
@@ -80,6 +74,28 @@ export const uploadImage = async (file, file_model) => {
     } catch (err) {
         throw err;
     }
+};
+
+/**
+ * Extract and persist metadata for an already-copied image file.
+ * This phase is split from asset copy so EXIF delays do not block upload completion.
+ */
+export const processImageMetadata = async (file, file_model, options = {}) => {
+    try {
+        await extractImageInfo(file, file_model, options);
+        return await updateFileMetadata(file_model, file?.file_type);
+    } catch (err) {
+        throw err;
+    }
+};
+
+/**
+ * Backward-compatible single-phase helper used in local/manual flows.
+ */
+export const uploadImage = async (file, file_model) => {
+    const assets = await processImageAssets(file, file_model);
+    await processImageMetadata(file, file_model, { sourcePath: assets?.versions?.raw?.path });
+    return assets;
 };
 
 
