@@ -6,7 +6,9 @@ metadata:
   labels:
     capsule.clastix.io/managed-by: mlp-explorer
 spec:
-  podSelector: {} # Applies to ALL pods in the namespace to evaluate rules
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
   policyTypes:
     - Ingress
     - Egress

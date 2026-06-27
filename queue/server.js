@@ -22,6 +22,7 @@ const redisHost = process.env.MLE_REDIS_HOST || 'redis';
 const redisPort = parseInt(process.env.MLE_REDIS_PORT || '6379', 10);
 const queueName = process.env.MLE_QUEUE_NAME || 'mle-queue';
 const concurrentJobs = process.env.MLE_QUEUE_CONCURRENCY ? parseInt(process.env.MLE_QUEUE_CONCURRENCY, 10) : 1;
+const jobTimeoutMs = process.env.MLE_QUEUE_JOB_TIMEOUT_MS ? parseInt(process.env.MLE_QUEUE_JOB_TIMEOUT_MS, 10) : 300000;
 const appPort = parseInt(process.env.MLE_QUEUE_PORT || '3002', 10);
 const appHost = process.env.MLE_QUEUE_HOST || '0.0.0.0';
 
@@ -107,8 +108,8 @@ app.post('/jobs/process', async (req, res) => {
                 type: 'exponential',
                 delay: 1000, // 1s, 2s, 4s delays between retries
             },
-            // Optionally, add a timeout for the job itself
-            // timeout: 600000, // 10 minutes (in ms) before job is considered timed out
+            // Prevent jobs from hanging indefinitely in 'active'.
+            timeout: jobTimeoutMs,
         });
 
         console.log(`[RECEIVED] Job request, added to queue with ID: ${job.id}`);
@@ -232,6 +233,15 @@ app.delete('/jobs/delete/:id', async (req, res) => {
 
         const jobState = await job.getState();
         console.log(`[DELETE] Job ID ${jobId} current state: ${jobState}`);
+
+        if (jobState === 'active') {
+            return res.status(409).json({
+                success: false,
+                message: `Job ID ${jobId} is currently active and cannot be deleted until it finishes or times out.`,
+                jobId: job.id,
+                currentState: jobState
+            });
+        }
 
         await job.remove(); // Bull's built-in method to remove a job from the queue
         console.log(`[DELETE] Job ID ${jobId} successfully deleted from the queue.`);

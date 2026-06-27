@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mlp-nfs-pvc
+  name: mlp-nfs-pvc-test
   namespace: mlp-explorer-test
 spec:
   accessModes:
     - ReadWriteMany
+  storageClassName: ""
   resources:
     requests:
       storage: 10Ti
-  # Explicitly link to the existing PV name that the sysadmins control
-  volumeName: mlp-nfs-pv
+  volumeName: mlp-nfs-pvc-test

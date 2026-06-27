@@ -29,9 +29,9 @@ function NodesRoutes() {
     this.routes = {
         filter: {
             path: '/filter',
-            get: this.controller.filter,
+            get: null,
             put: null,
-            post: null,
+            post: this.controller.filter,
             delete: null,
         },
         search: {

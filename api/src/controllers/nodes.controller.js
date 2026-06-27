@@ -215,27 +215,26 @@ export const exporter = async (req, res, next) => {
  */
 
 export const filter = async (req, res, next) => {
-
     try {
+        // CHANGED: Read from req.body instead of req.query
+        const { ids = '', offset = 0, limit = 10 } = req.body || {};
 
-        // get query parameters
-        const { ids='', offset=0, limit=10 } = req.query || {};
+        console.log('Received filter request with IDs:', ids);
 
-        // sanitize + convert query string to node id array
-        const nodeIDs = ids
-            .split(' ')
-            .map(id => {
-                return sanitize(id, 'integer');
-            });
+        // Sanitize + convert query string to node id array
+        const nodeIDs = typeof ids === 'string' 
+            ? ids.split(' ').map(id => sanitize(id, 'integer'))
+            : ids.map(id => sanitize(id, 'integer'));
 
-        // get results for each model requested
+        // Get results for each model requested
         const resultData = await nserve.filterNodesByID(nodeIDs, offset, limit);
 
         res.status(200).json(
             prepare({
                 view: 'filter',
                 data: resultData
-            }));
+            })
+        );
 
     } catch (err) {
         return next(err);

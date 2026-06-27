@@ -4,23 +4,41 @@ metadata:
   name: allow-rsfshare-egress
   namespace: mlp-explorer-test
 spec:
-  podSelector: {} # Applies to all pods in the namespace
+  podSelector: {} # Applies to all pods in this namespace
   policyTypes:
   - Egress
   egress:
-  # Rule 1: Allow DNS Resolution queries
-  - to:
-    ports:
+  # 1. Core DNS Whitelist
+  - ports:
     - protocol: UDP
       port: 53
     - protocol: TCP
       port: 53
-  # Rule 2: Allow connection to the RSFShare NFS Storage Target
+
+  # 2. Strict Whitelist for the .14 Target
   - to:
     - ipBlock:
         cidr: 142.104.55.14/32
     ports:
     - protocol: TCP
-      port: 111   # RPCbind
+      port: 111
     - protocol: TCP
-      port: 2049  # NFS
+      port: 2049
+    - protocol: UDP
+      port: 111
+    - protocol: UDP
+      port: 2049
+
+  # 3. Strict Whitelist for the .13 Target
+  - to:
+    - ipBlock:
+        cidr: 142.104.55.13/32
+    ports:
+    - protocol: TCP
+      port: 111
+    - protocol: TCP
+      port: 2049
+    - protocol: UDP
+      port: 111
+    - protocol: UDP
+      port: 2049
