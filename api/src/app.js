@@ -24,13 +24,13 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import path from 'path';
 import fs from 'fs';
 import { createStream } from 'rotating-file-stream';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { globalHandler, notFoundHandler } from './error.js';
 import router from './routes/index.routes.js';
-import st from 'st';
 import { testDatabaseConnection } from './services/db.services.js';
 import { startQueueHealthMonitor } from './services/other.services.js';
 import { ensureAppDirectories } from './lib/file.utils.js';
@@ -210,8 +210,17 @@ export default async () => {
      * Serve static files.
      */
 
-    const mount = st({ path: process.env.MLE_LOWRES_DIR, url: '/uploads' })
-    app.use(mount);
+    const uploadsDir = process.env.MLE_LOWRES_DIR;
+    if (uploadsDir) {
+        app.use('/uploads', express.static(uploadsDir, {
+            dotfiles: 'deny',
+            fallthrough: false,
+            index: false,
+            maxAge: '1d',
+        }));
+    } else {
+        console.warn('MLE_LOWRES_DIR is not set; /uploads static files will not be served.');
+    }
 
     /**
      * Initialize router asynchronously.
