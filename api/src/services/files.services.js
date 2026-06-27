@@ -27,7 +27,7 @@ import * as metaserve from '../services/metadata.services.js';
 import { extractFileLabel } from '../lib/file.utils.js';
 import * as nserve from "./nodes.services.js";
 import AdmZip from 'adm-zip';
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 import { Readable } from "stream";
 import fetch from 'node-fetch';
 
@@ -838,7 +838,7 @@ export const streamArchive = async (res, files = {}, version, metadata = {}) => 
     });
 
     // Create an archive
-    const archive = archiver('zip', {
+    const archive = new ZipArchive({
         zlib: { level: 9 } // Sets the compression level.
     });
 
