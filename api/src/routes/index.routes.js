@@ -118,26 +118,26 @@ export default async function initRouter() {
         await initRoutes(client, other, baseRouter);
         await initRoutes(client, maps, baseRouter);
 
-        // Pass client to parallel blocks safely
+        // Routes share one client — must be sequential to avoid overlapping client.query calls (pg@9)
         const modelsRoutes = await models(client);
-        await Promise.all(modelsRoutes.map(routes => {
-            return initRoutes(client, routes, baseRouter)
-        }));
+        for (const routes of modelsRoutes) {
+            await initRoutes(client, routes, baseRouter);
+        }
 
         const metadataRoutes = await metadata(client);
-        await Promise.all(metadataRoutes.map(routes => {
-            return initRoutes(client, routes, baseRouter)
-        }));
+        for (const routes of metadataRoutes) {
+            await initRoutes(client, routes, baseRouter);
+        }
 
         const filesRoutes = await files(client);
-        await Promise.all(filesRoutes.map(routes => {
-            return initRoutes(client, routes, baseRouter)
-        }));
+        for (const routes of filesRoutes) {
+            await initRoutes(client, routes, baseRouter);
+        }
 
         const masterRoutes = await master(client);
-        await Promise.all(masterRoutes.map(routes => {
-            return initRoutes(client, routes, baseRouter)
-        }));
+        for (const routes of masterRoutes) {
+            await initRoutes(client, routes, baseRouter);
+        }
 
         return baseRouter;
         
