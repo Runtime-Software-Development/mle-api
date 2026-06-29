@@ -17,6 +17,12 @@
  * Revisions
  * - 29-07-2023   Refactored out Redis connection as separate queue service.
  * - 08-09-2024   Changed CORS and Helmet settings to allow cross-origin requests.
+ * - 08-09-2024   Added error logging to file and console.
+ * - 27-06-2026   Added directory creation for log and uploads directories.
+ * - 27-06-2026   Added database connection test on startup.
+ * - 27-06-2026   Added queue health monitor on startup.
+ * - 27-06-2026   Updated Node.js version to 24.
+ * 
  */
 
 'use strict';

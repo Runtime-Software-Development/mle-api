@@ -219,7 +219,8 @@ export const filter = async (req, res, next) => {
         // CHANGED: Read from req.body instead of req.query
         const { ids = '', offset = 0, limit = 10 } = req.body || {};
 
-        console.log('Received filter request with IDs:', ids);
+        // Sanitize + convert query string to node id array
+        // console.log('Received filter request with IDs:', ids);
 
         // Sanitize + convert query string to node id array
         const nodeIDs = typeof ids === 'string' 

@@ -17,7 +17,7 @@ pids
 *.pid.lock
 
 # Initialization files
-db_init/db_backup
+db_init/
 postgres_data
 postgres_data/*
 
