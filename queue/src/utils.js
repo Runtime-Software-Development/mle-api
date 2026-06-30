@@ -26,13 +26,12 @@ export const ensureDirectoryExists = (directoryPath) => {
         return;
     }
     try {
-        if (!fs.existsSync(directoryPath)) {
-            fs.mkdirSync(directoryPath, { recursive: true });
-            console.log(`Created directory: ${directoryPath}`);
-        } else {
-            console.warn(`Directory already exists: ${directoryPath}`);
-        }
+        fs.mkdirSync(directoryPath, { recursive: true });
+        console.log(`Ensured directory exists: ${directoryPath}`);
     } catch (err) {
+        if (err.code === 'EEXIST') {
+            return;
+        }
         console.error(`Error ensuring directory exists for ${directoryPath}:`, err);
         // Depending on criticality, you might want to throw the error
         // process.exit(1); // Exit if a critical directory cannot be created
@@ -48,6 +47,7 @@ export const ensureAppDirectories = () => {
     // Use process.env for paths, as they come from your .env file or environment
     ensureDirectoryExists(process.env.MLE_UPLOAD_DIR);
     ensureDirectoryExists(process.env.MLE_LOWRES_DIR);
+    ensureDirectoryExists(process.env.MLE_TMP_DIR);
 
     console.log('Application directory check complete.');
 };
