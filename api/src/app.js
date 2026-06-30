@@ -37,7 +37,7 @@ import { ensureAppDirectories } from './lib/file.utils.js';
 import path from 'path';
 import dotenv from 'dotenv';
 
-dotenv.config('/opt/mlp/mle-api/.env');
+dotenv.config();
 
 /**
  * Create Express application.
