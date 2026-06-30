@@ -14,7 +14,35 @@ dotenv.config();
 'use strict';
 
 // Configuration constants from environment variables
-const maxJobs = process.env.MLE_QUEUE_MAX_JOBS ? parseInt(process.env.MLE_QUEUE_MAX_JOBS) : 1000;  
+const maxJobs = process.env.MLE_QUEUE_MAX_JOBS ? parseInt(process.env.MLE_QUEUE_MAX_JOBS) : 1000;
+
+const getQueueServerOrigin = () => {
+  if (process.env.MLE_QUEUE_SERVER_URL) {
+    try {
+      return new URL(process.env.MLE_QUEUE_SERVER_URL).origin;
+    } catch (err) {
+      console.warn('[queue] Invalid MLE_QUEUE_SERVER_URL:', process.env.MLE_QUEUE_SERVER_URL);
+    }
+  }
+
+  let host = process.env.MLE_QUEUE_HOST || 'localhost';
+  let port = process.env.MLE_QUEUE_PORT || '3002';
+
+  try {
+    if (host.includes('://')) {
+      const parsed = new URL(host);
+      host = parsed.hostname;
+      port = port || parsed.port;
+    }
+
+    const origin = new URL(`http://${host}`);
+    origin.port = port;
+    return origin.origin;
+  } catch (err) {
+    console.warn('[queue] Invalid queue host/port values; defaulting to localhost:3002', err.message);
+    return 'http://localhost:3002';
+  }
+};
 
 /**
    * 
@@ -150,10 +178,7 @@ export const initializeQueue = async (queue) => {
  */
 export async function isQueueServerReady() {
   try {
-    // Construct the URL to the external queue server's health check endpoint.
-    // Ensure MLE_QUEUE_HOST is a valid hostname/IP from the API's perspective (e.g., a Docker service name).
-    const url = `http://${process.env.MLE_QUEUE_HOST}:${process.env.MLE_QUEUE_PORT}/health`; // Using /health as a common endpoint
-    // Consider adding a timeout for fetch requests in a production environment
+    const url = `${getQueueServerOrigin()}/health`;
     const response = await fetch(url, { timeout: 5000 }); // 5 second timeout
     return response.ok; // If response status is 2xx, it's considered OK
   } catch (error) {

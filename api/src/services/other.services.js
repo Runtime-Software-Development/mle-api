@@ -58,13 +58,26 @@ export const getShowcaseCaptures = async (client) => {
 const HEALTH_CHECK_INTERVAL_MS = 30000; // Check every 15 seconds
 let queueApiStatus = 'unknown'; // Initial status
 
+const getQueueServerUrl = () => {
+    if (!process.env.MLE_QUEUE_SERVER_URL) {
+        return '';
+    }
+    try {
+        return new URL(process.env.MLE_QUEUE_SERVER_URL).origin;
+    } catch (err) {
+        console.warn('[API] Invalid MLE_QUEUE_SERVER_URL:', process.env.MLE_QUEUE_SERVER_URL);
+        return process.env.MLE_QUEUE_SERVER_URL.replace(/\/+$/, '');
+    }
+};
+
 export async function checkQueueApiHealth() {
-    console.log(`[Health Check] Pinging mle-queue API at ${process.env.MLE_QUEUE_SERVER_URL}/health...`);
+    const queueHealthUrl = `${getQueueServerUrl()}/health`;
+    console.log(`[Health Check] Pinging mle-queue API at ${queueHealthUrl}...`);
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
 
-        const response = await fetch(`${process.env.MLE_QUEUE_SERVER_URL}/health`, { signal: controller.signal });
+        const response = await fetch(queueHealthUrl, { signal: controller.signal });
 
         clearTimeout(timeoutId); // Clear the timeout if the request completes in time
 
