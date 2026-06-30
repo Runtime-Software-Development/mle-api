@@ -34,6 +34,10 @@ import st from 'st';
 import { testDatabaseConnection } from './services/db.services.js';
 import { startQueueHealthMonitor } from './services/other.services.js';
 import { ensureAppDirectories } from './lib/file.utils.js';
+import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config('/opt/mlp/mle-api/.env');
 
 /**
  * Create Express application.
