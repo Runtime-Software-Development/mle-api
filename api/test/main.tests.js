@@ -25,5 +25,17 @@ describe('Index page test', () => {
       .get(BASE_URL)
       .expect(200);
   });
+
+  it('Gets lightweight health probe', async () => {
+    await request(app)
+      .get('/healthz')
+      .expect(200)
+      .expect('Content-Type', /json/)
+      .expect(({ body }) => {
+        if (body.status !== 'ok' || body.server !== 'up') {
+          throw new Error('Unexpected /healthz response body');
+        }
+      });
+  });
 });
 

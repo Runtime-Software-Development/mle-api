@@ -210,6 +210,10 @@ export default async () => {
     /**
      * Reroute favicon icon request.
      */
+    app.get('/healthz', (_, res) => {
+        res.status(200).json({ status: 'ok', server: 'up' });
+    });
+
     app.get('/favicon.ico', (_, res) => res.status(204).send());
 
     /**
