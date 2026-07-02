@@ -77,7 +77,7 @@ export const selectByNode = async (node, client) => {
 
 export const get = async (id, type, client, options = {}) => {
 
-    const { includeDependents = true } = options;
+    const { includeDependents = true, includeStatus = true } = options;
 
         if (!id) return null;
 
@@ -87,20 +87,45 @@ export const get = async (id, type, client, options = {}) => {
         // check that node exists and node type matches
         if (!node || type !== node.type) return null;
 
-        const metadata = await selectByNode(node, client);
-        const files = await fserve.selectByOwner(id, client);
-        const status = await getStatus(node, client);
-
-        let dependents = [];
-        let hasDeps = false;
         const isLeafType = LEAF_NODE_TYPES.has(node.type);
 
-        // /filter and leaf show routes do not need full dependent traversal.
-        if (!isLeafType) {
-            if (includeDependents) {
-                dependents = await selectByOwner(id, client);
-            }
-            hasDeps = await hasDependents(id, client);
+        // Run independent metadata/files/status fetches in parallel
+        const parallelFetches = [
+            selectByNode(node, client),
+            fserve.selectByOwner(id, client),
+        ];
+        
+        // Status is expensive; only fetch if needed
+        if (includeStatus) {
+            parallelFetches.push(getStatus(node, client));
+        }
+        
+        // Only add dependent/hasDependents fetches if not a leaf type and requested
+        const needsDependents = !isLeafType;
+        if (needsDependents && includeDependents) {
+            parallelFetches.push(selectByOwner(id, client));
+        }
+        if (needsDependents) {
+            parallelFetches.push(hasDependents(id, client));
+        }
+
+        const results = await Promise.all(parallelFetches);
+        const metadata = results[0];
+        const files = results[1];
+        
+        let status = '';
+        let resultIdx = 2;
+        if (includeStatus) {
+            status = results[resultIdx++];
+        }
+        
+        let dependents = [];
+        let hasDeps = false;
+        if (needsDependents && includeDependents) {
+            dependents = results[resultIdx++];
+        }
+        if (needsDependents) {
+            hasDeps = results[resultIdx];
         }
 
         // append model data, files and dependents (child nodes)
