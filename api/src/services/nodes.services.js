@@ -81,7 +81,7 @@ export const selectByNode = async (node, client) => {
 
 export const get = async (id, type, client, options = {}) => {
 
-    const { includeDependents = true } = options;
+    const { includeDependents = true, dependentOptions = {} } = options;
 
         const startedAt = process.hrtime.bigint();
         let selectMs = 0;
@@ -121,7 +121,7 @@ export const get = async (id, type, client, options = {}) => {
         const needsDependents = !isLeafType;
         if (needsDependents && includeDependents) {
             t = process.hrtime.bigint();
-            dependents = await selectByOwner(id, client);
+            dependents = await selectByOwner(id, client, dependentOptions);
             dependentsMs = timingMs(t);
         }
         if (needsDependents) {
@@ -255,7 +255,9 @@ export const getTree = async function(model) {
  * @return {Promise} result
  */
 
-export const selectByOwner = async (id, client) => {
+export const selectByOwner = async (id, client, options = {}) => {
+
+    const { includeFiles = true, includeStatus = true } = options;
 
     id = sanitize(id, 'integer');
 
@@ -270,9 +272,13 @@ export const selectByOwner = async (id, client) => {
     const enrichedNodes = [];
     for (const node of nodes) {
         const metadata = await selectByNode(node, client);
-        const files = await fserve.selectByOwner(node.id, client);
+        const files = includeFiles
+            ? await fserve.selectByOwner(node.id, client)
+            : [];
         const hasDeps = await hasDependents(node.id, client);
-        const status = await getStatus(node, client);
+        const status = includeStatus
+            ? await getStatus(node, client)
+            : '';
         const label = await mserve.getNodeLabel(node, [], client);
         enrichedNodes.push({
             id: node?.id,

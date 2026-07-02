@@ -138,7 +138,11 @@ export default function ModelController(nodeType) {
             let id = this.getId(req);
 
             // get item node + metadata
-            let itemData = await nserve.get(id, nodeType, client);
+            // Deep models only need lightweight dependent records for expando menus.
+            const getOptions = modelTemplate.depth > 1
+                ? { dependentOptions: { includeFiles: false } }
+                : {};
+            let itemData = await nserve.get(id, nodeType, client, getOptions);
 
             // item record and/or node not found in database
             if (!itemData || nodeType !== itemData?.type) return next(new Error('notFound'));
@@ -151,7 +155,7 @@ export default function ModelController(nodeType) {
                 const enrichedDependents = [];
                 for (const dependent of itemData.dependents) {
                     const { node = {} } = dependent || {};
-                    dependent.dependents = await nserve.selectByOwner(node.id, client);
+                    dependent.dependents = await nserve.selectByOwner(node.id, client, { includeFiles: false });
                     dependent.attached = await metaserve.getAttachedByNode(node, client);
                     enrichedDependents.push(dependent);
                 }

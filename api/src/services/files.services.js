@@ -174,6 +174,11 @@ export const selectByOwner = async (id, client) => {
     const { sql, data } = queries.files.selectByOwner(id);
     const { rows = [] } = await client.query(sql, data);
 
+    if (rows.length === 0) return {};
+
+    const owner = await nserve.select(sanitize(id, 'integer'), client);
+    const ownerMetadata = owner ? await nserve.selectByNode(owner, client) : {};
+
     // Cache metadata_file_types lookups: the table is tiny and identical for
     // every file in this request, so avoid one round-trip per file.
     const metadataFileTypeCache = new Map();
@@ -185,17 +190,34 @@ export const selectByOwner = async (id, client) => {
         return metadataFileTypeCache.get(key);
     };
 
-    // Enrich files sequentially (pg@9 forbids concurrent queries on one client)
-    // but batch the two independent sub-lookups per file with Promise.all.
+    // Batch metadata by file_type to avoid per-file metadata queries.
+    const metadataByType = new Map();
+    const fileTypes = [...new Set(rows.map(file => file?.file_type).filter(Boolean))];
+    for (const fileType of fileTypes) {
+        const metadataRows = await metaserve.selectByOwner(id, fileType, client) || [];
+        const byFileId = new Map();
+        for (const metadataRow of metadataRows) {
+            byFileId.set(metadataRow.files_id, metadataRow);
+        }
+        metadataByType.set(fileType, byFileId);
+    }
+
+    const getCaptureLabel = (filename = '') => {
+        const { fn_photo_reference = '' } = ownerMetadata || {};
+        return fn_photo_reference ? fn_photo_reference : extractFileLabel(filename, 'Capture Image');
+    };
+
     const files = [];
     for (const file of rows) {
-        const { file_type = '', filename = '' } = file || {};
-        const fileMetadata = await selectByFile(file, client);
+        const { file_type = '', filename = '', id: fileId = 0 } = file || {};
+        const fileMetadata = metadataByType.get(file_type)?.get(fileId) || {};
         const { type = '', secure_token = '' } = fileMetadata || {};
-        const [label, metadata_type] = await Promise.all([
-            getFileLabel(file, client),
-            cachedSelectByName('metadata_file_types', type),
-        ]);
+
+        const metadata_type = await cachedSelectByName('metadata_file_types', type);
+        const label = captureImageTypes.includes(file_type)
+            ? getCaptureLabel(filename)
+            : extractFileLabel(filename, filename) || 'File Unknown';
+
         files.push({
             file: file,
             label: label,

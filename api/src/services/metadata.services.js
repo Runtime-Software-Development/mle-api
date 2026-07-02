@@ -720,12 +720,16 @@ export const getNodeLabel = async (node, files=[], client) => {
         // For captures, check if photo reference label is missing. If so, use
         // an image file name to label the node.
         if (type === 'historic_captures' && label === '') {
-            const captureImages = await fserve.selectByOwner(id, client);
+            const captureImages = files && Object.keys(files).length > 0
+                ? files
+                : await fserve.selectByOwner(id, client);
             const { historic_images = [] } = captureImages || {};
             label = historic_images.length > 0 ? historic_images[0].label : label || 'Empty Capture';
         }
         if (type === 'modern_captures' && label === '') {
-            const captureImages = await fserve.selectByOwner(id, client);
+            const captureImages = files && Object.keys(files).length > 0
+                ? files
+                : await fserve.selectByOwner(id, client);
             const {modern_images = []} = captureImages || {};
             label = modern_images.length > 0 ? modern_images[0].label : label || 'Empty Capture';
         }
