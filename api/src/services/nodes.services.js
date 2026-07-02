@@ -28,6 +28,10 @@ const LEAF_NODE_TYPES = new Set([
     'glass_plate_listings',
 ]);
 
+const DEBUG_NODE_TIMINGS = process.env.MLE_DEBUG_NODE_TIMINGS === 'true';
+
+const timingMs = (start) => Number(process.hrtime.bigint() - start) / 1e6;
+
 
 /**
  * Get node by ID. Returns single node object.
@@ -79,28 +83,71 @@ export const get = async (id, type, client, options = {}) => {
 
     const { includeDependents = true } = options;
 
+        const startedAt = process.hrtime.bigint();
+        let selectMs = 0;
+        let metadataMs = 0;
+        let filesMs = 0;
+        let statusMs = 0;
+        let dependentsMs = 0;
+        let hasDepsMs = 0;
+        let labelMs = 0;
+
         if (!id) return null;
 
         // get requested node by ID
+        let t = process.hrtime.bigint();
         const node = await select(id, client);
+        selectMs = timingMs(t);
 
         // check that node exists and node type matches
         if (!node || type !== node.type) return null;
 
         const isLeafType = LEAF_NODE_TYPES.has(node.type);
 
+        t = process.hrtime.bigint();
         const metadata = await selectByNode(node, client);
+        metadataMs = timingMs(t);
+
+        t = process.hrtime.bigint();
         const files = await fserve.selectByOwner(id, client);
+        filesMs = timingMs(t);
+
+        t = process.hrtime.bigint();
         const status = await getStatus(node, client);
+        statusMs = timingMs(t);
 
         let dependents = [];
         let hasDeps = false;
         const needsDependents = !isLeafType;
         if (needsDependents && includeDependents) {
+            t = process.hrtime.bigint();
             dependents = await selectByOwner(id, client);
+            dependentsMs = timingMs(t);
         }
         if (needsDependents) {
+            t = process.hrtime.bigint();
             hasDeps = await hasDependents(id, client);
+            hasDepsMs = timingMs(t);
+        }
+
+        t = process.hrtime.bigint();
+        const label = await mserve.getNodeLabel(node, files || [], client);
+        labelMs = timingMs(t);
+
+        if (DEBUG_NODE_TIMINGS) {
+            console.info('[nodes.get] timings_ms', {
+                id,
+                type,
+                includeDependents,
+                select: Number(selectMs.toFixed(2)),
+                metadata: Number(metadataMs.toFixed(2)),
+                files: Number(filesMs.toFixed(2)),
+                status: Number(statusMs.toFixed(2)),
+                dependents: Number(dependentsMs.toFixed(2)),
+                hasDependents: Number(hasDepsMs.toFixed(2)),
+                label: Number(labelMs.toFixed(2)),
+                total: Number(timingMs(startedAt).toFixed(2)),
+            });
         }
 
         // append model data, files and dependents (child nodes)
@@ -108,7 +155,7 @@ export const get = async (id, type, client, options = {}) => {
             type: node.type,
             node: node,
             metadata: metadata,
-            label: await mserve.getNodeLabel(node, files || [], client),
+            label: label,
             files: files || [],
             refImage: getCaptureImage(files || [], node),
             dependents: dependents || [],
@@ -163,10 +210,6 @@ export const getTree = async function(model) {
     const client = await pool.connect();
 
     try {
-
-        // start transaction
-        await client.query('BEGIN');
-
         // get all nodes for model
         let { sql, data } = queries.nodes.selectByModel(model);
         let nodes = await client.query(sql, data)
@@ -192,14 +235,10 @@ export const getTree = async function(model) {
             });
         }
 
-        // end transaction
-        await client.query('COMMIT');
-
         // return nodes
         return items;
 
     } catch (err) {
-        await client.query('ROLLBACK');
         throw err;
     } finally {
         client.release();
@@ -272,9 +311,6 @@ export const filterNodesByID = async (nodeIDs, offset, limit) => {
     const client = await pool.connect();
 
     try {
-        // start transaction
-        await client.query('BEGIN');
-
         const parsedOffset = Math.max(0, parseInt(offset, 10) || 0);
         const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
 
@@ -293,9 +329,6 @@ export const filterNodesByID = async (nodeIDs, offset, limit) => {
             items.push(await get(node.id, node.type, client, { includeDependents: false }));
         }
 
-        // end transaction
-        await client.query('COMMIT');
-
         return {
             query: nodeIDs,
             limit: parsedLimit,
@@ -305,7 +338,6 @@ export const filterNodesByID = async (nodeIDs, offset, limit) => {
         };
 
     } catch (err) {
-        await client.query('ROLLBACK');
         throw err;
     } finally {
         client.release();
@@ -350,9 +382,6 @@ export const getPath = async (inputNode) => {
     const client = await pool.connect();
 
     try {
-        // start transaction
-        await client.query('BEGIN');
-
         // initialize node path map
         let nodePath = new Map();
         // check if leaf is a file
@@ -401,13 +430,10 @@ export const getPath = async (inputNode) => {
             n++;
         } while (id && n < end);
 
-        await client.query('COMMIT');
-
         // return node path as JS object
         return mapToObj(nodePath);
 
     } catch (err) {
-        await client.query('ROLLBACK');
         throw err;
     } finally {
         client.release();

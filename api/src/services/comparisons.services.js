@@ -30,9 +30,6 @@ export const filterComparisonsByID = async (comparisonIDs, offset, limit) => {
     const client = await pool.connect();
 
     try {
-        // start transaction
-        await client.query('BEGIN');
-
         // get filtered nodes
         let { sql, data } = queries.comparisons.filterByIDArray(comparisonIDs, offset, limit);
         let comparisons = await client.query(sql, data)
@@ -51,9 +48,6 @@ export const filterComparisonsByID = async (comparisonIDs, offset, limit) => {
             });
         }
 
-        // end transaction
-        await client.query('COMMIT');
-
         return {
             query: comparisonIDs,
             limit: limit,
@@ -63,10 +57,9 @@ export const filterComparisonsByID = async (comparisonIDs, offset, limit) => {
         };
 
     } catch (err) {
-        await client.query('ROLLBACK');
         throw err;
     } finally {
-        await client.release();
+        client.release();
     }
 };
 

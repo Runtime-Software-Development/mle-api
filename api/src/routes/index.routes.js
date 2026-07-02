@@ -145,7 +145,6 @@ export default async function initRouter() {
         throw err
     }
     finally {
-        // Change to false so the pool retains the connection socket!
-        client.release(false); 
+        client.release();
     }
 }
