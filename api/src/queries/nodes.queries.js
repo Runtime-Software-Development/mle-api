@@ -107,11 +107,11 @@ export function filterByIDArray(ids, offset, limit) {
             (SELECT COUNT(*) FROM nodes WHERE id = ANY($1)) as total
             FROM nodes 
             WHERE id = ANY($1)
-            OFFSET ${offset}
-            LIMIT ${limit}`;
+            OFFSET $2::integer
+            LIMIT $3::integer`;
     return {
         sql: sql,
-        data: [ids],
+        data: [ids, offset, limit],
     };
 }
 

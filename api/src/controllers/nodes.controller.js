@@ -216,8 +216,9 @@ export const exporter = async (req, res, next) => {
 
 export const filter = async (req, res, next) => {
     try {
-        // CHANGED: Read from req.body instead of req.query
         const { ids = '', offset = 0, limit = 10 } = req.body || {};
+        const parsedOffset = Math.max(0, parseInt(offset, 10) || 0);
+        const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
 
         // Sanitize + convert query string to node id array
         // console.log('Received filter request with IDs:', ids);
@@ -228,7 +229,7 @@ export const filter = async (req, res, next) => {
             : ids.map(id => sanitize(id, 'integer'));
 
         // Get results for each model requested
-        const resultData = await nserve.filterNodesByID(nodeIDs, offset, limit);
+        const resultData = await nserve.filterNodesByID(nodeIDs, parsedOffset, parsedLimit);
 
         res.status(200).json(
             prepare({

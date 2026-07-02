@@ -20,6 +20,14 @@ import {getCaptureImage, getStatus} from './metadata.services.js';
 import * as fserve from './files.services.js';
 import {getFileLabel} from './files.services.js';
 
+const LEAF_NODE_TYPES = new Set([
+    'historic_captures',
+    'modern_captures',
+    'locations',
+    'map_features',
+    'glass_plate_listings',
+]);
+
 
 /**
  * Get node by ID. Returns single node object.
@@ -67,7 +75,9 @@ export const selectByNode = async (node, client) => {
  * @return {Promise} result
  */
 
-export const get = async (id, type, client) => {
+export const get = async (id, type, client, options = {}) => {
+
+    const { includeDependents = true } = options;
 
         if (!id) return null;
 
@@ -77,14 +87,21 @@ export const get = async (id, type, client) => {
         // check that node exists and node type matches
         if (!node || type !== node.type) return null;
 
-        // Run independent fetches in parallel — only getNodeLabel needs files first.
-        const [metadata, files, dependents, hasDeps, status] = await Promise.all([
-            selectByNode(node, client),
-            fserve.selectByOwner(id, client),
-            selectByOwner(id, client),
-            hasDependents(id, client),
-            getStatus(node, client),
-        ]);
+        const metadata = await selectByNode(node, client);
+        const files = await fserve.selectByOwner(id, client);
+        const status = await getStatus(node, client);
+
+        let dependents = [];
+        let hasDeps = false;
+        const isLeafType = LEAF_NODE_TYPES.has(node.type);
+
+        // /filter and leaf show routes do not need full dependent traversal.
+        if (!isLeafType) {
+            if (includeDependents) {
+                dependents = await selectByOwner(id, client);
+            }
+            hasDeps = await hasDependents(id, client);
+        }
 
         // append model data, files and dependents (child nodes)
         return {
@@ -264,8 +281,11 @@ export const filterNodesByID = async (nodeIDs, offset, limit) => {
         // start transaction
         await client.query('BEGIN');
 
+        const parsedOffset = Math.max(0, parseInt(offset, 10) || 0);
+        const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+
         // get filtered nodes
-        let { sql, data } = queries.nodes.filterByIDArray(nodeIDs, offset, limit);
+        let { sql, data } = queries.nodes.filterByIDArray(nodeIDs, parsedOffset, parsedLimit);
         let nodes = await client.query(sql, data)
             .then(res => {
                 return res.rows
@@ -273,10 +293,10 @@ export const filterNodesByID = async (nodeIDs, offset, limit) => {
 
         const count = nodes.length > 0 ? nodes[0].total : 0;
 
-        // append model data sequentially to avoid concurrent client.query usage
+        // append model data; /filter does not need full dependent subtree expansion
         const items = [];
         for (const node of nodes) {
-            items.push(await get(node.id, node.type, client));
+            items.push(await get(node.id, node.type, client, { includeDependents: false }));
         }
 
         // end transaction
@@ -284,8 +304,8 @@ export const filterNodesByID = async (nodeIDs, offset, limit) => {
 
         return {
             query: nodeIDs,
-            limit: limit,
-            offset: offset,
+            limit: parsedLimit,
+            offset: parsedOffset,
             results: items,
             count: count
         };
