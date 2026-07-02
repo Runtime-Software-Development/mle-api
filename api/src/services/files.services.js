@@ -174,18 +174,34 @@ export const selectByOwner = async (id, client) => {
     const { sql, data } = queries.files.selectByOwner(id);
     const { rows = [] } = await client.query(sql, data);
 
-    // append full data sequentially to avoid overlapping queries on one client
+    // Cache metadata_file_types lookups: the table is tiny and identical for
+    // every file in this request, so avoid one round-trip per file.
+    const metadataFileTypeCache = new Map();
+    const cachedSelectByName = async (model, name) => {
+        const key = `${model}:${name}`;
+        if (!metadataFileTypeCache.has(key)) {
+            metadataFileTypeCache.set(key, await metaserve.selectByName(model, name, client));
+        }
+        return metadataFileTypeCache.get(key);
+    };
+
+    // Enrich files sequentially (pg@9 forbids concurrent queries on one client)
+    // but batch the two independent sub-lookups per file with Promise.all.
     const files = [];
     for (const file of rows) {
         const { file_type = '', filename = '' } = file || {};
         const fileMetadata = await selectByFile(file, client);
         const { type = '', secure_token = '' } = fileMetadata || {};
+        const [label, metadata_type] = await Promise.all([
+            getFileLabel(file, client),
+            cachedSelectByName('metadata_file_types', type),
+        ]);
         files.push({
             file: file,
-            label: await getFileLabel(file, client),
+            label: label,
             filename: (filename || '').replace(`_${secure_token}`, ''),
             metadata: fileMetadata,
-            metadata_type: await metaserve.selectByName('metadata_file_types', type, client),
+            metadata_type: metadata_type,
             url: getImageURL(file_type, fileMetadata),
         });
     }

@@ -77,21 +77,26 @@ export const get = async (id, type, client) => {
         // check that node exists and node type matches
         if (!node || type !== node.type) return null;
 
-        // get node model metadata
-        const metadata = await selectByNode(node, client);
-        const files = await fserve.selectByOwner(id, client) || [];
+        // Run independent fetches in parallel — only getNodeLabel needs files first.
+        const [metadata, files, dependents, hasDeps, status] = await Promise.all([
+            selectByNode(node, client),
+            fserve.selectByOwner(id, client),
+            selectByOwner(id, client),
+            hasDependents(id, client),
+            getStatus(node, client),
+        ]);
 
         // append model data, files and dependents (child nodes)
         return {
             type: node.type,
             node: node,
             metadata: metadata,
-            label: await mserve.getNodeLabel(node, files, client),
-            files: files,
-            refImage: getCaptureImage(files, node),
-            dependents: await selectByOwner(id, client) || [],
-            hasDependents: await hasDependents(id, client),
-            status: await getStatus(node, client),
+            label: await mserve.getNodeLabel(node, files || [], client),
+            files: files || [],
+            refImage: getCaptureImage(files || [], node),
+            dependents: dependents || [],
+            hasDependents: hasDeps,
+            status: status,
         }
 };
 
@@ -152,18 +157,24 @@ export const getTree = async function(model) {
                 return res.rows
             });
 
-        // Append model data sequentially to avoid overlapping queries on one client.
+        // Enrich each root node — parallel within each node, sequential across nodes
+        // (pg@9 forbids concurrent queries on the same client connection).
         const items = [];
         for (const node of nodes) {
-            const metadata = await selectByNode(node, client);
+            const [metadata, hasDeps, status] = await Promise.all([
+                selectByNode(node, client),
+                hasDependents(node.id, client),
+                getStatus(node, client),
+            ]);
+            const label = await mserve.getNodeLabel(node, [], client);
             items.push({
                 id: node?.id,
                 node: node,
-                label: await mserve.getNodeLabel(node, [], client),
+                label: label,
                 type: node.type,
                 metadata: metadata,
-                hasDependents: await hasDependents(node.id, client) || false,
-                status: await getStatus(node, client)
+                hasDependents: hasDeps || false,
+                status: status,
             });
         }
 
@@ -202,22 +213,28 @@ export const selectByOwner = async (id, client) => {
             return res.rows
         });
 
-    // append full data sequentially to avoid overlapping queries on one client
+    // Enrich each dependent node — parallel within each node, sequential across nodes
+    // (pg@9 forbids concurrent queries on the same client connection).
     const enrichedNodes = [];
     for (const node of nodes) {
-        const metadata = await selectByNode(node, client);
-        const files = await fserve.selectByOwner(node.id, client);
+        const [metadata, files, hasDeps, status] = await Promise.all([
+            selectByNode(node, client),
+            fserve.selectByOwner(node.id, client),
+            hasDependents(node.id, client),
+            getStatus(node, client),
+        ]);
+        const label = await mserve.getNodeLabel(node, [], client);
         enrichedNodes.push({
             id: node?.id,
             model: node.type,
             node: node,
-            label: await mserve.getNodeLabel(node, [], client),
+            label: label,
             type: node.type,
             metadata: metadata,
             files: files,
             refImage: getCaptureImage(files, node),
-            hasDependents: await hasDependents(node.id, client),
-            status: await getStatus(node, client)
+            hasDependents: hasDeps,
+            status: status,
         });
     }
     nodes = enrichedNodes;

@@ -41,6 +41,29 @@ import { testDatabaseConnection } from './services/db.services.js';
 import { startQueueHealthMonitor } from './services/other.services.js';
 import { ensureAppDirectories } from './lib/file.utils.js';
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function pad2(value) {
+    return String(value).padStart(2, '0');
+}
+
+function formatCLFLocalDate(date = new Date()) {
+    const day = pad2(date.getDate());
+    const month = MONTHS[date.getMonth()];
+    const year = date.getFullYear();
+    const hour = pad2(date.getHours());
+    const minute = pad2(date.getMinutes());
+    const second = pad2(date.getSeconds());
+
+    const tzOffsetMinutes = date.getTimezoneOffset();
+    const sign = tzOffsetMinutes > 0 ? '-' : '+';
+    const absOffset = Math.abs(tzOffsetMinutes);
+    const tzHours = pad2(Math.floor(absOffset / 60));
+    const tzMinutes = pad2(absOffset % 60);
+
+    return `${day}/${month}/${year}:${hour}:${minute}:${second} ${sign}${tzHours}${tzMinutes}`;
+}
+
 /**
  * Create Express application.
  * @private
@@ -179,8 +202,14 @@ export default async () => {
     }));
 
     // use morgan for HTTP request logging
-    app.use(morgan(process.env.MLE_LOG_FORMAT || 'dev'));
-    app.use(morgan(process.env.MLE_LOG_FORMAT || 'combined', { stream: accessLogStream }));
+    morgan.token('localdate', (_, __, ___, date) => formatCLFLocalDate(date));
+    morgan.format('combined-local', ':remote-addr - :remote-user [:localdate] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"');
+
+    const consoleLogFormat = process.env.MLE_LOG_FORMAT || 'dev';
+    const accessLogFormat = process.env.MLE_LOG_FORMAT || 'combined';
+
+    app.use(morgan(consoleLogFormat === 'combined' ? 'combined-local' : consoleLogFormat));
+    app.use(morgan(accessLogFormat === 'combined' ? 'combined-local' : accessLogFormat, { stream: accessLogStream }));
 
     // parse application/x-www-form-urlencoded
     app.use(express.urlencoded({
