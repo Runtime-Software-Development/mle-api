@@ -54,9 +54,6 @@ export const show = async (req, res, next) => {
     try {
 
         const { id=null } = req.params || {};
-        const { showDependents = 'false' } = req.query || {};
-        const includeDependents = showDependents === 'true';
-        const includeStatus = includeDependents; // Only fetch expensive status if full details requested
         const node = await nserve.select(id, client);
 
         if (!node) return next(new Error('notFound'));
@@ -64,7 +61,7 @@ export const show = async (req, res, next) => {
         res.status(200).json(
             prepare({
                 view: 'show',
-                data: await nserve.get(node.id, node.type, client, { includeDependents, includeStatus })
+                data: await nserve.get(node.id, node.type, client)
             }));
 
     } catch (err) {
