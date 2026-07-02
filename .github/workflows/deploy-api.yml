@@ -21,6 +21,7 @@ env:
 jobs:
 
   deploy:
+    if: false # Deployment disabled while releases are handled manually.
     runs-on: ubuntu-latest
     environment: production
 

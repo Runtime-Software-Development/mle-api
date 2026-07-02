@@ -1,4 +1,4 @@
-# Build and push API, Queue, and Proxy Docker images to GitHub Container Registry.
+# Build and push API and Queue Docker images to GitHub Container Registry.
 # Images are used by the Helm chart for Kubernetes deployment.
 
 name: Build and Push Container Images to GHCR
@@ -19,9 +19,8 @@ env:
   REGISTRY: ghcr.io
   # API image: same as repo (e.g. ghcr.io/runtime-software-development/mle-api)
   API_IMAGE: ${{ github.repository }}
-  # Queue and proxy: same owner, distinct package names for GHCR
+  # Queue image: same owner, distinct package name for GHCR
   QUEUE_IMAGE: ${{ github.repository_owner }}/mle-queue
-  PROXY_IMAGE: ${{ github.repository_owner }}/mle-api-proxy
 
 jobs:
   build-and-push:
@@ -88,31 +87,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # --- Proxy (NGINX) image ---
-      - name: Extract metadata for Proxy image
-        id: meta-proxy
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.PROXY_IMAGE }}
-          tags: |
-            type=raw,value=latest
-            type=sha,prefix=
-            type=ref,event=tag
-
-      - name: Build and push Proxy image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./proxy
-          file: ./proxy/Dockerfile
-          push: true
-          tags: ${{ steps.meta-proxy.outputs.tags }}
-          labels: ${{ steps.meta-proxy.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Summary
         run: |
           echo "## Images pushed to GHCR" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.REGISTRY }}/${{ env.API_IMAGE }}:latest\` (and short-sha)" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.REGISTRY }}/${{ env.QUEUE_IMAGE }}:latest\` (and short-sha)" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.REGISTRY }}/${{ env.PROXY_IMAGE }}:latest\` (and short-sha)" >> $GITHUB_STEP_SUMMARY
