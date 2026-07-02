@@ -41,10 +41,12 @@ spec:
             - name: redis
               containerPort: {{ .Values.redis.service.port }}
               protocol: TCP
-          {{- with .Values.redis.env }}
           env:
+            - name: TZ
+              value: {{ .Values.global.timezone | default "America/Vancouver" | quote }}
+            {{- with .Values.redis.env }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           args:
             - --appendonly
             - "yes"

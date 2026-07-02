@@ -1,6 +1,7 @@
 global:
   nameOverride: ""
   fullnameOverride: ""
+  timezone: "America/Vancouver"
   serviceAccount:
     # Leave empty to skip binding a service account to pods
     name: ""

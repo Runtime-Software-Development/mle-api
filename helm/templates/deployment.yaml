@@ -68,6 +68,8 @@ spec:
           resources:
             {{- toYaml .Values.mleAPI.resources | nindent 12 }}
           env:
+            - name: TZ
+              value: {{ .Values.global.timezone | default "America/Vancouver" | quote }}
             {{- if .Values.mleAPI.env }}
             {{- toYaml .Values.mleAPI.env | nindent 12 }}
             {{- end }}

@@ -42,6 +42,8 @@ spec:
               containerPort: {{ .Values.queue.service.port }}
               protocol: TCP
           env:
+            - name: TZ
+              value: {{ .Values.global.timezone | default "America/Vancouver" | quote }}
             - name: MLE_REDIS_HOST
               value: "{{ include "redis.fullname" . }}-svc"
             - name: MLE_REDIS_PORT

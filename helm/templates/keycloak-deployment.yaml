@@ -39,6 +39,8 @@ spec:
             - --import-realm
             - --http-port={{ .Values.keycloak.http.port }}
           env:
+            - name: TZ
+              value: {{ .Values.global.timezone | default "America/Vancouver" | quote }}
             - name: KEYCLOAK_ADMIN
               valueFrom:
                 secretKeyRef:
