@@ -138,11 +138,7 @@ export default function ModelController(nodeType) {
             let id = this.getId(req);
 
             // get item node + metadata
-            // Deep models only need lightweight dependent records for expando menus.
-            const getOptions = modelTemplate.depth > 1
-                ? { dependentOptions: { includeFiles: false } }
-                : {};
-            let itemData = await nserve.get(id, nodeType, client, getOptions);
+            let itemData = await nserve.get(id, nodeType, client);
 
             // item record and/or node not found in database
             if (!itemData || nodeType !== itemData?.type) return next(new Error('notFound'));
