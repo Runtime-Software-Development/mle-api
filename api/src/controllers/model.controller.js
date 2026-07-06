@@ -151,7 +151,7 @@ export default function ModelController(nodeType) {
                 const enrichedDependents = [];
                 for (const dependent of itemData.dependents) {
                     const { node = {} } = dependent || {};
-                    dependent.dependents = await nserve.selectByOwner(node.id, client, { includeFiles: false });
+                    dependent.dependents = await nserve.selectByOwner(node.id, client);
                     dependent.attached = await metaserve.getAttachedByNode(node, client);
                     enrichedDependents.push(dependent);
                 }
