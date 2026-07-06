@@ -148,14 +148,42 @@ export default function ModelController(nodeType) {
 
             // append second-level dependents (if node depth is above threshold)
             if (modelTemplate.depth > 1) {
+                const includeDependentAttached = itemData?.type !== 'modern_visits';
                 const enrichedDependents = [];
                 for (const dependent of itemData.dependents) {
                     const { node = {} } = dependent || {};
                     dependent.dependents = await nserve.selectByOwner(node.id, client);
-                    dependent.attached = await metaserve.getAttachedByNode(node, client);
+                    // Loading attached comparisons for every location under a modern visit
+                    // duplicates heavy payload already included at visit level.
+                    dependent.attached = includeDependentAttached
+                        ? await metaserve.getAttachedByNode(node, client)
+                        : {};
                     enrichedDependents.push(dependent);
                 }
                 itemData.dependents = enrichedDependents;
+
+                // Modern visits do not have direct modern_images; promote the first
+                // capture image from nested modern_captures as the representative image.
+                if (
+                    itemData?.type === 'modern_visits'
+                    && (!itemData?.refImage || itemData?.refImage?.label === 'No Images')
+                ) {
+                    let fallbackRefImage = null;
+                    for (const dependent of itemData.dependents) {
+                        const childDependents = dependent?.dependents || [];
+                        const captureWithImage = childDependents.find(child => {
+                            const refImage = child?.refImage || {};
+                            return refImage?.label && refImage.label !== 'No Images';
+                        });
+                        if (captureWithImage?.refImage) {
+                            fallbackRefImage = captureWithImage.refImage;
+                            break;
+                        }
+                    }
+                    if (fallbackRefImage) {
+                        itemData.refImage = fallbackRefImage;
+                    }
+                }
             }
 
             // include attached metadata
