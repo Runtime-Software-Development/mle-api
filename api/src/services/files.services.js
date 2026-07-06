@@ -190,11 +190,32 @@ export const selectByOwner = async (id, client) => {
         return metadataFileTypeCache.get(key);
     };
 
-    // Batch metadata by file_type to avoid per-file metadata queries.
+    // Batch metadata by file_type and files_id to avoid per-file metadata queries.
     const metadataByType = new Map();
     const fileTypes = [...new Set(rows.map(file => file?.file_type).filter(Boolean))];
     for (const fileType of fileTypes) {
-        const metadataRows = await metaserve.selectByOwner(id, fileType, client) || [];
+        // file_type values come from our DB enum/table and map to metadata table names
+        // (e.g., historic_images, modern_images, metadata_files).
+        if (!/^[a-z_]+$/.test(fileType)) {
+            metadataByType.set(fileType, new Map());
+            continue;
+        }
+
+        const fileIds = rows
+            .filter(file => file?.file_type === fileType)
+            .map(file => sanitize(file?.id, 'integer'))
+            .filter(Boolean);
+
+        if (fileIds.length === 0) {
+            metadataByType.set(fileType, new Map());
+            continue;
+        }
+
+        const stmt = {
+            sql: `SELECT * FROM ${fileType} WHERE files_id = ANY($1::integer[])`,
+            data: [fileIds],
+        };
+        const { rows: metadataRows = [] } = await client.query(stmt.sql, stmt.data);
         const byFileId = new Map();
         for (const metadataRow of metadataRows) {
             byFileId.set(metadataRow.files_id, metadataRow);

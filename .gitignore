@@ -160,4 +160,4 @@ api/data/
 queue/data/
 
 # helm
-helm/network-policies/
+helm/network-policies/**
