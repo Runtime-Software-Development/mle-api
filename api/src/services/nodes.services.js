@@ -23,7 +23,6 @@ import {getFileLabel} from './files.services.js';
 const LEAF_NODE_TYPES = new Set([
     'historic_captures',
     'modern_captures',
-    'locations',
     'map_features',
     'glass_plate_listings',
 ]);
