@@ -264,6 +264,10 @@ export function update(model, timestamps = ['updated_at']) {
     // filter ignored columns:
     // - DO NOT ignore ID, CREATE_AT columns if model is a node instance
     const ignore = model.isNode ? ['created_at'] : [model.idKey, 'created_at'];
+    // Keep map_features.geometry immutable on update to avoid JSON form-data coercion issues.
+    if (model.name === 'map_features') {
+        ignore.push('geometry');
+    }
     const cols = Object
         .keys(model.attributes)
         .filter(key => !ignore.includes(key));
