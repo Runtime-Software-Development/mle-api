@@ -48,7 +48,7 @@ spec:
           {{- if .Values.mleAPI.probes.liveness.enabled }}
           livenessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
             initialDelaySeconds: {{ .Values.mleAPI.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.mleAPI.probes.liveness.periodSeconds }}
@@ -58,7 +58,7 @@ spec:
           {{- if .Values.mleAPI.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
             initialDelaySeconds: {{ .Values.mleAPI.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.mleAPI.probes.readiness.periodSeconds }}

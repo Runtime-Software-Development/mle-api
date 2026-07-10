@@ -103,6 +103,21 @@ export default async () => {
         size: '10M'
     });
 
+    // Guard against transient filesystem/NFS failures (for example, ESHUTDOWN on network volumes).
+    // Without an error listener, stream "error" events can terminate the process.
+    let accessLogStreamHealthy = true;
+    let errorLogStreamHealthy = true;
+
+    accessLogStream.on('error', (err) => {
+        accessLogStreamHealthy = false;
+        console.error('[Logging] Access log stream disabled due to write error:', err?.message || err);
+    });
+
+    errorLogStream.on('error', (err) => {
+        errorLogStreamHealthy = false;
+        console.error('[Logging] Error log stream disabled due to write error:', err?.message || err);
+    });
+
     // Error Logger Function
     // This function will write errors to both console.error and the error log file
     const errorLogger = {
@@ -123,7 +138,14 @@ export default async () => {
             console.error(logMessage);
 
             // Write to the error log file
-            errorLogStream.write(logMessage + '\n');
+            if (errorLogStreamHealthy) {
+                try {
+                    errorLogStream.write(logMessage + '\n');
+                } catch (streamError) {
+                    errorLogStreamHealthy = false;
+                    console.error('[Logging] Failed to write error log entry:', streamError?.message || streamError);
+                }
+            }
         }
     };
 
@@ -209,7 +231,24 @@ export default async () => {
     const accessLogFormat = process.env.MLE_LOG_FORMAT || 'combined';
 
     app.use(morgan(consoleLogFormat === 'combined' ? 'combined-local' : consoleLogFormat));
-    app.use(morgan(accessLogFormat === 'combined' ? 'combined-local' : accessLogFormat, { stream: accessLogStream }));
+    const morganAccessStream = {
+        write: (line) => {
+            if (!accessLogStreamHealthy) {
+                process.stdout.write(line);
+                return;
+            }
+
+            try {
+                accessLogStream.write(line);
+            } catch (streamError) {
+                accessLogStreamHealthy = false;
+                console.error('[Logging] Failed to write access log entry:', streamError?.message || streamError);
+                process.stdout.write(line);
+            }
+        }
+    };
+
+    app.use(morgan(accessLogFormat === 'combined' ? 'combined-local' : accessLogFormat, { stream: morganAccessStream }));
 
     // parse application/x-www-form-urlencoded
     app.use(express.urlencoded({
