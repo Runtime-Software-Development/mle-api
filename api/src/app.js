@@ -84,39 +84,51 @@ export default async () => {
     const logDirectory = process.env.MLE_LOG_DIR || path.join(__dirname, 'log');
     const logFileName = process.env.MLE_ACCESS_LOG_FILE || 'access.log';
     const errorLogFileName = process.env.MLE_ERROR_LOG_FILE || 'error.log';
+    const fileLoggingEnabled = String(process.env.MLE_LOG_TO_FILE || 'true').toLowerCase() === 'true';
 
-    fs.existsSync(logDirectory) || fs.mkdirSync(logDirectory, { recursive: true });
+    let accessLogStream = null;
+    let errorLogStream = null;
 
-    // Create access and error log streams
-    const accessLogStream = createStream(logFileName, {
-        interval: '7d',
-        path: logDirectory,
-        compress: 'gzip',
-        maxFiles: 10,
-        size: '10M'
-    });
-    const errorLogStream = createStream(errorLogFileName, {
-        interval: '7d',
-        path: logDirectory,
-        compress: 'gzip',
-        maxFiles: 10,
-        size: '10M'
-    });
+    if (fileLoggingEnabled) {
+        fs.existsSync(logDirectory) || fs.mkdirSync(logDirectory, { recursive: true });
+
+        // Create access and error log streams
+        accessLogStream = createStream(logFileName, {
+            interval: '7d',
+            path: logDirectory,
+            compress: 'gzip',
+            maxFiles: 10,
+            size: '10M'
+        });
+        errorLogStream = createStream(errorLogFileName, {
+            interval: '7d',
+            path: logDirectory,
+            compress: 'gzip',
+            maxFiles: 10,
+            size: '10M'
+        });
+    } else {
+        console.log('[Logging] File logging disabled (MLE_LOG_TO_FILE=false); using stdout/stderr only.');
+    }
 
     // Guard against transient filesystem/NFS failures (for example, ESHUTDOWN on network volumes).
     // Without an error listener, stream "error" events can terminate the process.
     let accessLogStreamHealthy = true;
     let errorLogStreamHealthy = true;
 
-    accessLogStream.on('error', (err) => {
-        accessLogStreamHealthy = false;
-        console.error('[Logging] Access log stream disabled due to write error:', err?.message || err);
-    });
+    if (accessLogStream) {
+        accessLogStream.on('error', (err) => {
+            accessLogStreamHealthy = false;
+            console.error('[Logging] Access log stream disabled due to write error:', err?.message || err);
+        });
+    }
 
-    errorLogStream.on('error', (err) => {
-        errorLogStreamHealthy = false;
-        console.error('[Logging] Error log stream disabled due to write error:', err?.message || err);
-    });
+    if (errorLogStream) {
+        errorLogStream.on('error', (err) => {
+            errorLogStreamHealthy = false;
+            console.error('[Logging] Error log stream disabled due to write error:', err?.message || err);
+        });
+    }
 
     // Error Logger Function
     // This function will write errors to both console.error and the error log file
@@ -138,7 +150,7 @@ export default async () => {
             console.error(logMessage);
 
             // Write to the error log file
-            if (errorLogStreamHealthy) {
+            if (errorLogStreamHealthy && errorLogStream) {
                 try {
                     errorLogStream.write(logMessage + '\n');
                 } catch (streamError) {
@@ -233,7 +245,7 @@ export default async () => {
     app.use(morgan(consoleLogFormat === 'combined' ? 'combined-local' : consoleLogFormat));
     const morganAccessStream = {
         write: (line) => {
-            if (!accessLogStreamHealthy) {
+            if (!accessLogStreamHealthy || !accessLogStream) {
                 process.stdout.write(line);
                 return;
             }
