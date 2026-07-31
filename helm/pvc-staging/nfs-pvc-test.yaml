@@ -9,4 +9,4 @@ spec:
   resources:
     requests:
       storage: 10Ti
-  volumeName: mlp-nfs-pvc-test
+  volumeName: mlp-test-nfs-pv

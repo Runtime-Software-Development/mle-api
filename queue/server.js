@@ -12,8 +12,10 @@ import Bull from 'bull'; // Note: Bull is an older library, TODO: Switch to Bull
 import { processJob } from './src/worker.js';
 import dotenv from 'dotenv';
 import { ensureAppDirectories } from './src/utils.js'; 
+import { configureQueueLogging } from './src/logging.js';
 
 dotenv.config();
+configureQueueLogging();
 
 const app = express();
 app.use(express.json());

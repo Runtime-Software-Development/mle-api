@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mlp-nfs-pvc-dev
+  name: mlp-nfs-pvc-prod
 spec:
   accessModes:
     - ReadWriteMany
@@ -9,4 +9,4 @@ spec:
   resources:
     requests:
       storage: 10Ti
-  volumeName: mlp-dev-nfs-pv
+  volumeName: mlp-prod-nfs-pv

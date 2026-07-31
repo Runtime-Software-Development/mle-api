@@ -44,6 +44,16 @@ spec:
           env:
             - name: TZ
               value: {{ .Values.global.timezone | default "America/Vancouver" | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.global.logging.level | default "info" | quote }}
+            - name: MLE_LOG_TO_FILE
+              value: {{ .Values.global.logging.toFile | default true | quote }}
+            - name: MLE_LOG_DIR
+              value: {{ .Values.global.logging.dir | default "/usr/src/app/logs" | quote }}
+            - name: MLE_QUEUE_LOG_FILE
+              value: "queue.log"
+            - name: MLE_QUEUE_ERROR_LOG_FILE
+              value: "queue-error.log"
             - name: MLE_REDIS_HOST
               value: "{{ include "redis.fullname" . }}-svc"
             - name: MLE_REDIS_PORT
@@ -78,13 +88,26 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.queue.resources | nindent 12 }}
-          {{- with .Values.queue.volumeMounts }}
+          {{- if or .Values.mleAPI.persistence.logs.enabled .Values.queue.volumeMounts }}
           volumeMounts:
+            {{- if .Values.mleAPI.persistence.logs.enabled }}
+            - name: logs
+              mountPath: {{ .Values.global.logging.dir | default "/usr/src/app/logs" | quote }}
+            {{- end }}
+            {{- with .Values.queue.volumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- with .Values.queue.volumes }}
+      {{- if or .Values.mleAPI.persistence.logs.enabled .Values.queue.volumes }}
       volumes:
+        {{- if .Values.mleAPI.persistence.logs.enabled }}
+        - name: logs
+          persistentVolumeClaim:
+            claimName: {{ include "mleAPI.fullname" . }}-logs-pvc
+        {{- end }}
+        {{- with .Values.queue.volumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       {{- with .Values.queue.nodeSelector }}
       nodeSelector:

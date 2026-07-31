@@ -17,6 +17,12 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
 
+const DEFAULT_DB_CONNECTION_TIMEOUT_MS = 5000;
+const dbConnectionTimeoutMs = Number.parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT_MS, 10);
+const connectionTimeoutMillis = Number.isFinite(dbConnectionTimeoutMs) && dbConnectionTimeoutMs > 0
+  ? dbConnectionTimeoutMs
+  : DEFAULT_DB_CONNECTION_TIMEOUT_MS;
+
 // DEBUG
 // console.log('MLE API Environment Variables: %s', JSON.stringify(process.env, null, 2));
 
@@ -32,7 +38,7 @@ const pool = new pg.Pool({
     host: process.env.POSTGRES_HOST,
     port: process.env.POSTGRES_PORT,
     max: 20, // max number of clients in the pool
-    connectionTimeoutMillis: 1000,
+  connectionTimeoutMillis,
     idleTimeoutMillis: 10000
 });
 

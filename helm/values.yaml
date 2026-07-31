@@ -2,6 +2,10 @@ global:
   nameOverride: ""
   fullnameOverride: ""
   timezone: "America/Vancouver"
+  logging:
+    level: "info"
+    dir: "/usr/src/app/logs"
+    toFile: true
   serviceAccount:
     # Leave empty to skip binding a service account to pods
     name: ""
@@ -68,8 +72,6 @@ mleAPI:
       value: "3000"
     - name: APP_ID
       value: "mle-api"
-    - name: LOG_LEVEL
-      value: "info"
     - name: MLE_LOG_FORMAT
       value: "combined"
     - name: REQUEST_LIMIT

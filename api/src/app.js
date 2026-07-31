@@ -40,6 +40,7 @@ import router from './routes/index.routes.js';
 import { testDatabaseConnection } from './services/db.services.js';
 import { startQueueHealthMonitor } from './services/other.services.js';
 import { ensureAppDirectories } from './lib/file.utils.js';
+import { configureConsoleLogging, shouldEnableHttpAccessLogs } from './lib/logging.utils.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -70,6 +71,8 @@ function formatCLFLocalDate(date = new Date()) {
  */
 
 export default async () => {
+
+    const activeLogLevel = configureConsoleLogging();
 
     // Ensure data directories exist before starting the server
     ensureAppDirectories();
@@ -241,8 +244,11 @@ export default async () => {
 
     const consoleLogFormat = process.env.MLE_LOG_FORMAT || 'dev';
     const accessLogFormat = process.env.MLE_LOG_FORMAT || 'combined';
+    const httpAccessLogsEnabled = shouldEnableHttpAccessLogs(activeLogLevel);
 
-    app.use(morgan(consoleLogFormat === 'combined' ? 'combined-local' : consoleLogFormat));
+    if (httpAccessLogsEnabled) {
+        app.use(morgan(consoleLogFormat === 'combined' ? 'combined-local' : consoleLogFormat));
+    }
     const morganAccessStream = {
         write: (line) => {
             if (!accessLogStreamHealthy || !accessLogStream) {
@@ -260,7 +266,11 @@ export default async () => {
         }
     };
 
-    app.use(morgan(accessLogFormat === 'combined' ? 'combined-local' : accessLogFormat, { stream: morganAccessStream }));
+    if (httpAccessLogsEnabled) {
+        app.use(morgan(accessLogFormat === 'combined' ? 'combined-local' : accessLogFormat, { stream: morganAccessStream }));
+    } else {
+        console.warn('[Logging] HTTP access logging disabled for current LOG_LEVEL.');
+    }
 
     // parse application/x-www-form-urlencoded
     app.use(express.urlencoded({

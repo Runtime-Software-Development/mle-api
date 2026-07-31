@@ -147,7 +147,7 @@ dist
 mle-test-realm.json
 
 # Helm
-helm/values.production.yaml
+helm/values.prod.yaml
 helm/values.test.yaml
 helm/values.dev.yaml
 
