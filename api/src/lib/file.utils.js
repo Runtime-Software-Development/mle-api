@@ -153,6 +153,21 @@ export const supplementalMIMETypes = {
     'rtf': 'application/rtf'
 };
 
+const allowedImageMIMEValues = new Set(
+    Object.values(imageMIMETypes).map((value) => String(value).toLowerCase())
+);
+
+const allowedSupplementalMIMEValues = new Set(
+    Object.values(supplementalMIMETypes).map((value) => String(value).toLowerCase())
+);
+
+export function normalizeMIMEType(mimeType = '') {
+    return String(mimeType)
+        .split(';')[0]
+        .trim()
+        .toLowerCase();
+}
+
 // retrieve MIME type from filename extension
 export function getMIME(filename) {
     const ext = filename.split('.').pop().toLowerCase();
@@ -165,17 +180,17 @@ export function getMIME(filename) {
 
 // determine if any MIME type is allowed
 export function allowedMIME(mimeType) {
-    console.log('Checking MIME type:', mimeType);
-    return Object.keys(imageMIMETypes).includes(mimeType)
-        || Object.keys(supplementalMIMETypes).includes(mimeType)
-        || Object.values(imageMIMETypes).includes(mimeType)
-        || Object.values(supplementalMIMETypes).includes(mimeType);
+    const normalizedMIMEType = normalizeMIMEType(mimeType);
+    console.log('Checking MIME type:', normalizedMIMEType);
+    return allowedImageMIMEValues.has(normalizedMIMEType)
+        || allowedSupplementalMIMEValues.has(normalizedMIMEType);
 }
 
 // determine if image MIME type is allowed
 export function allowedImageMIME(mimeType) {
-    console.log('Checking MIME type:', mimeType);
-    return Object.keys(imageMIMETypes).includes(mimeType) || Object.values(imageMIMETypes).includes(mimeType);
+    const normalizedMIMEType = normalizeMIMEType(mimeType);
+    console.log('Checking MIME type:', normalizedMIMEType);
+    return allowedImageMIMEValues.has(normalizedMIMEType);
 }
 
 

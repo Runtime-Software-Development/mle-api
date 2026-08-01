@@ -82,8 +82,12 @@ export const processImageAssets = async (file, file_model) => {
  */
 export const processImageMetadata = async (file, file_model, options = {}) => {
     try {
-        await extractImageInfo(file, file_model, options);
-        return await updateFileMetadata(file_model, file?.file_type);
+        const exifDiagnostics = await extractImageInfo(file, file_model, options);
+        const metadataUpdate = await updateFileMetadata(file_model, file?.file_type);
+        return {
+            metadataUpdate,
+            exif: exifDiagnostics,
+        };
     } catch (err) {
         throw err;
     }

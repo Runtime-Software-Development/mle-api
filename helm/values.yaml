@@ -6,6 +6,8 @@ global:
     level: "info"
     dir: "/usr/src/app/logs"
     toFile: true
+    sharedSubdir: ""
+    useSharedDataVolume: false
   serviceAccount:
     # Leave empty to skip binding a service account to pods
     name: ""
@@ -56,10 +58,11 @@ mleAPI:
   persistence:
     logs:
       enabled: true
+      existingClaim: ""
       size: 1Gi
       storageClassName: ""
       accessModes:
-        - ReadWriteOnce
+        - ReadWriteMany
       mountPath: /usr/src/app/logs
 
   env:
@@ -100,8 +103,6 @@ mleAPI:
     - name: MLE_ROOT_DIR
       value: "/usr/src/app"
     # Logging
-    - name: MLE_LOG_DIR
-      value: "/usr/src/app/logs"
     - name: MLE_ACCESS_LOG_FILE
       value: "access.log"
     - name: MLE_ERROR_LOG_FILE
@@ -191,6 +192,16 @@ mleAPI:
 queue:
   enabled: true
   replicaCount: 1
+
+  persistence:
+    logs:
+      enabled: true
+      existingClaim: ""
+      size: 1Gi
+      storageClassName: ""
+      accessModes:
+        - ReadWriteMany
+      mountPath: /usr/src/app/logs
 
   image:
     repository: "ghcr.io/runtime-software-development/mle-queue"

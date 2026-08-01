@@ -216,6 +216,12 @@ export const extractImageInfo = async (file, file_model, options = {}) => {
         file_model.cameras_id = matchedCamera?.value || file_model.cameras_id || null;
     };
 
+    const exifDiagnostics = {
+        parser: null,
+        warnings: [],
+        raw: null,
+    };
+
     const exiftool = new ExifTool({ taskTimeoutMillis: 5000 });
     try {
         // Start the ExifTool process
@@ -224,9 +230,12 @@ export const extractImageInfo = async (file, file_model, options = {}) => {
         // Debug
         console.log(`[INFO] EXIF metadata for file ${file?.filename}:`, exifTags);
         applyExifTags(exifTags);
+        exifDiagnostics.parser = 'exiftool';
+        exifDiagnostics.raw = exifTags;
 
     } catch (error) {
         console.warn('[WARN] EXIF metadata extraction failed:', error);
+        exifDiagnostics.warnings.push(`exiftool_failed: ${error.message}`);
         try {
             // Backup parser path for resilience (best-effort for IIQ/TIFF/JPEG metadata).
             const fallbackTags = await withTimeout(
@@ -242,16 +251,22 @@ export const extractImageInfo = async (file, file_model, options = {}) => {
             if (fallbackTags) {
                 console.log('[INFO] Applied EXIF fallback metadata parser.');
                 applyExifTags(fallbackTags);
+                exifDiagnostics.parser = 'exifr-fallback';
+                exifDiagnostics.raw = fallbackTags;
             }
         } catch (fallbackError) {
             console.warn('[WARN] EXIF fallback parser failed:', fallbackError.message);
+            exifDiagnostics.warnings.push(`exifr_failed: ${fallbackError.message}`);
         }
     }
     finally {
         await withTimeout(exiftool.end(), 2000, 'EXIF shutdown').catch((error) => {
             console.warn('[WARN] EXIF process shutdown timed out:', error.message);
+            exifDiagnostics.warnings.push(`exif_shutdown_timeout: ${error.message}`);
         });
     }
+
+    return exifDiagnostics;
 };
 
 

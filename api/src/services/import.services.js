@@ -31,11 +31,13 @@
 'use strict';
 
 import busboy from 'busboy';
-import { allowedImageMIME, allowedMIME } from "../lib/file.utils.js";
+import { allowedImageMIME, allowedMIME, normalizeMIMEType } from "../lib/file.utils.js";
 import { genUUID } from '../lib/data.utils.js';
 import fs from 'fs';
 import path from 'path';
 import { getConstructors } from './construct.services.js';
+
+const IMAGE_UPLOAD_TYPES = new Set(['historic_images', 'modern_images', 'supplemental_images']);
 
 /**
  * Promisified version of the busboy file upload handler.
@@ -199,6 +201,7 @@ export const onFile = (name, file, info, files, abort) => {
 
     try {
         const { filename, encoding, mimeType } = info;
+        const normalizedMIMEType = normalizeMIMEType(mimeType);
 
         // Process any stringified array input data indexed with '[<index>]' values
         // - parses stringified representation of a formData Object
@@ -211,11 +214,12 @@ export const onFile = (name, file, info, files, abort) => {
 
         // Reject unacceptable MIME types for given file type
         if (
-            !allowedMIME(mimeType)
-            || (['historic_images', 'modern_images', 'supplemental_images'].includes(name)
-                && !allowedImageMIME(mimeType))
+            !allowedMIME(normalizedMIMEType)
+            || (IMAGE_UPLOAD_TYPES.has(fileType)
+                && !allowedImageMIME(normalizedMIMEType))
         ) {
-            abort(new Error('invalidMIMEType')); // This now rejects the promise
+            abort(new Error('invalidMIMEType'));
+            return;
         }
 
         // Upload as temporary file to local storage before processing
@@ -250,7 +254,7 @@ export const onFile = (name, file, info, files, abort) => {
                 file: {
                     file_type: fileType,
                     filename: safeFilename,
-                    mimetype: mimeType,
+                    mimetype: normalizedMIMEType,
                     owner_type: '',
                     owner_id: '',
                     fs_path: null,

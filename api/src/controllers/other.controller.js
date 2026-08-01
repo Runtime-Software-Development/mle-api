@@ -232,3 +232,82 @@ export const removeJob = async (req, res, next) => {
         }
     }
 };
+
+/**
+ * Get queue status snapshot from Queue API.
+ */
+export const queueStatus = async (_, res) => {
+    const QUEUE_API_URL = process.env.MLE_QUEUE_SERVER_URL || 'http://mle-queue:3002';
+    const FETCH_TIMEOUT_MS = 10000;
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+        const response = await fetch(`${QUEUE_API_URL}/queue/status`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        const body = await response.text();
+        if (!response.ok) {
+            return res.status(response.status).json({
+                success: false,
+                message: 'Failed to fetch queue status',
+                details: body,
+            });
+        }
+
+        return res.status(200).json(JSON.parse(body));
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            return res.status(504).json({ success: false, message: 'Queue API timeout fetching status.' });
+        }
+        return res.status(500).json({ success: false, message: 'Queue API status request failed.', details: error.message });
+    }
+};
+
+/**
+ * Get queue job detail by ID from Queue API.
+ */
+export const queueJobDetail = async (req, res) => {
+    const { id } = req.params;
+    const QUEUE_API_URL = process.env.MLE_QUEUE_SERVER_URL || 'http://mle-queue:3002';
+    const FETCH_TIMEOUT_MS = 10000;
+
+    if (!id) {
+        return res.status(400).json({ success: false, message: 'Job ID is required.' });
+    }
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+        const response = await fetch(`${QUEUE_API_URL}/queue/jobs/${id}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        const body = await response.text();
+        if (!response.ok) {
+            return res.status(response.status).json({
+                success: false,
+                message: `Failed to fetch queue job ${id}`,
+                details: body,
+            });
+        }
+
+        return res.status(200).json(JSON.parse(body));
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            return res.status(504).json({ success: false, message: `Queue API timeout fetching job ${id}.` });
+        }
+        return res.status(500).json({ success: false, message: `Queue API request failed for job ${id}.`, details: error.message });
+    }
+};

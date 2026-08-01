@@ -42,6 +42,10 @@ spec:
               containerPort: {{ .Values.queue.service.port }}
               protocol: TCP
           env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: TZ
               value: {{ .Values.global.timezone | default "America/Vancouver" | quote }}
             - name: LOG_LEVEL
@@ -49,7 +53,11 @@ spec:
             - name: MLE_LOG_TO_FILE
               value: {{ .Values.global.logging.toFile | default true | quote }}
             - name: MLE_LOG_DIR
-              value: {{ .Values.global.logging.dir | default "/usr/src/app/logs" | quote }}
+              {{- if .Values.global.logging.useSharedDataVolume }}
+              value: {{ printf "/mnt/data/%s/queue/$(POD_NAME)" (.Values.global.logging.sharedSubdir | default (printf "%s-shared-logs" (include "mleAPI.fullname" .))) | quote }}
+              {{- else }}
+              value: {{ .Values.queue.persistence.logs.mountPath | default .Values.global.logging.dir | default "/usr/src/app/logs" | quote }}
+              {{- end }}
             - name: MLE_QUEUE_LOG_FILE
               value: "queue.log"
             - name: MLE_QUEUE_ERROR_LOG_FILE
@@ -88,22 +96,23 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.queue.resources | nindent 12 }}
-          {{- if or .Values.mleAPI.persistence.logs.enabled .Values.queue.volumeMounts }}
+          {{- if or (and .Values.queue.persistence.logs.enabled (not .Values.global.logging.useSharedDataVolume)) .Values.queue.volumeMounts }}
           volumeMounts:
-            {{- if .Values.mleAPI.persistence.logs.enabled }}
+            {{- if and .Values.queue.persistence.logs.enabled (not .Values.global.logging.useSharedDataVolume) }}
             - name: logs
-              mountPath: {{ .Values.global.logging.dir | default "/usr/src/app/logs" | quote }}
+              mountPath: {{ .Values.queue.persistence.logs.mountPath | default .Values.global.logging.dir | default "/usr/src/app/logs" | quote }}
+              subPathExpr: {{ printf "%s/queue/$(POD_NAME)" (.Values.global.logging.sharedSubdir | default (printf "%s-shared-logs" (include "mleAPI.fullname" .))) | quote }}
             {{- end }}
             {{- with .Values.queue.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or .Values.mleAPI.persistence.logs.enabled .Values.queue.volumes }}
+      {{- if or (and .Values.queue.persistence.logs.enabled (not .Values.global.logging.useSharedDataVolume)) .Values.queue.volumes }}
       volumes:
-        {{- if .Values.mleAPI.persistence.logs.enabled }}
+        {{- if and .Values.queue.persistence.logs.enabled (not .Values.global.logging.useSharedDataVolume) }}
         - name: logs
           persistentVolumeClaim:
-            claimName: {{ include "mleAPI.fullname" . }}-logs-pvc
+            claimName: {{ .Values.queue.persistence.logs.existingClaim | default (printf "%s-logs-pvc" (include "queue.fullname" .)) }}
         {{- end }}
         {{- with .Values.queue.volumes }}
         {{- toYaml . | nindent 8 }}

@@ -1,0 +1,17 @@
+{{- if and .Values.queue.enabled .Values.queue.persistence.logs.enabled (not .Values.queue.persistence.logs.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "queue.fullname" . }}-logs-pvc
+  labels:
+    {{- include "queue.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.queue.persistence.logs.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.queue.persistence.logs.size }}
+  {{- if .Values.queue.persistence.logs.storageClassName }}
+  storageClassName: {{ .Values.queue.persistence.logs.storageClassName | quote }}
+  {{- end }}
+{{- end }}

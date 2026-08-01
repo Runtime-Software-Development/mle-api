@@ -27,6 +27,8 @@ const concurrentJobs = process.env.MLE_QUEUE_CONCURRENCY ? parseInt(process.env.
 const jobTimeoutMs = process.env.MLE_QUEUE_JOB_TIMEOUT_MS ? parseInt(process.env.MLE_QUEUE_JOB_TIMEOUT_MS, 10) : 300000;
 const appPort = parseInt(process.env.MLE_QUEUE_PORT || '3002', 10);
 const appHost = process.env.MLE_QUEUE_HOST || '0.0.0.0';
+const keepCompletedJobs = String(process.env.MLE_QUEUE_KEEP_COMPLETED_JOBS || 'true').toLowerCase() === 'true';
+const statusMaxJobs = process.env.MLE_QUEUE_STATUS_MAX_JOBS ? parseInt(process.env.MLE_QUEUE_STATUS_MAX_JOBS, 10) : 1000;
 
 // Message to console to start the server
 console.log('* Mountain Legacy Project');
@@ -71,7 +73,9 @@ queue.on('active', (job) => {
 
 queue.on('completed', (job) => {
     console.log(` - [COMPLETED] JOB ${job.id}`);
-    job.remove().catch(err => console.error(` - [ERROR] Failed to remove job ${job.id}:`, err)); 
+    if (!keepCompletedJobs) {
+        job.remove().catch(err => console.error(` - [ERROR] Failed to remove job ${job.id}:`, err));
+    }
 });
 
 queue.on('failed', (job, err) => {
@@ -294,8 +298,8 @@ app.get('/queue/status', async (_, res) => {
         const [redisPingResult, jobCountsResult, allJobsResult] = await Promise.allSettled([
             queue.client.ping(),
             queue.getJobCounts(['active', 'completed', 'delayed', 'failed', 'waiting']),
-            // Fetch all jobs for detailed listing, limit to 1000 as in original
-            queue.getJobs(['active', 'completed', 'delayed', 'failed', 'waiting'], 0, 1000)
+            // Fetch jobs for detailed listing with configurable history depth.
+            queue.getJobs(['active', 'completed', 'delayed', 'failed', 'waiting'], 0, statusMaxJobs)
         ]);
 
         const status = {
@@ -308,15 +312,31 @@ app.get('/queue/status', async (_, res) => {
 
         const formattedJobs = await Promise.all((rawJobs || []).map(async (job) => {
             const state = await job.getState();
+            const diagnostics = job?.data?.diagnostics || null;
+            const legacyError = (job.stacktrace || job.failedReason)
+                ? JSON.stringify(job.stacktrace || job.failedReason)
+                : null;
             return {
                 jobId: job.id,
-                data: JSON.stringify(job.data), // Stringify job data as requested
+                // Backward-compatible fields consumed by existing admin panel.
+                data: JSON.stringify(job.data),
+                error: legacyError,
+                attemptsMade: job.attemptsMade,
+                attemptsMax: job?.opts?.attempts || 1,
                 finishedOn: job.finishedOn,
                 processedOn: job.processedOn,
                 status: state,
                 timestamp: job.timestamp,
-                // Ensure error is stringified if it's an object, or null if not present
-                error: (job.stacktrace || job.failedReason) ? JSON.stringify(job.stacktrace || job.failedReason) : null
+                // Extended diagnostics payloads for richer admin UI views.
+                payload: job.data,
+                returnValue: job.returnvalue || null,
+                failedReason: job.failedReason || null,
+                stacktrace: Array.isArray(job.stacktrace) ? job.stacktrace : [],
+                diagnostics,
+                tempFilePath: diagnostics?.paths?.tmp || null,
+                uploadPath: diagnostics?.paths?.destination || null,
+                warnings: diagnostics?.warnings || [],
+                errors: diagnostics?.errors || [],
             };
         }));
 
@@ -329,6 +349,54 @@ app.get('/queue/status', async (_, res) => {
     } catch (error) {
         console.error(' - [ERROR] Failed to get detailed queue status:', error);
         res.status(500).json({ success: false, message: 'Failed to retrieve detailed queue status', details: error.message });
+    }
+});
+
+app.get('/queue/jobs/:id', async (req, res) => {
+    const { id } = req.params;
+
+    if (!id) {
+        return res.status(400).json({ success: false, message: 'Job ID is required.' });
+    }
+
+    try {
+        const job = await queue.getJob(id);
+        if (!job) {
+            return res.status(404).json({ success: false, message: `Job ID ${id} not found.` });
+        }
+
+        const state = await job.getState();
+        const diagnostics = job?.data?.diagnostics || null;
+        let logs = [];
+
+        try {
+            const logsResult = await queue.getJobLogs(id, 0, 200);
+            logs = Array.isArray(logsResult?.logs) ? logsResult.logs : [];
+        } catch (logError) {
+            logs = [];
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                jobId: job.id,
+                status: state,
+                data: job.data,
+                attemptsMade: job.attemptsMade,
+                attemptsMax: job?.opts?.attempts || 1,
+                timestamp: job.timestamp,
+                processedOn: job.processedOn,
+                finishedOn: job.finishedOn,
+                failedReason: job.failedReason || null,
+                stacktrace: Array.isArray(job.stacktrace) ? job.stacktrace : [],
+                returnValue: job.returnvalue || null,
+                diagnostics,
+                logs,
+            }
+        });
+    } catch (error) {
+        console.error(` - [ERROR] Failed to get job details for ${id}:`, error);
+        return res.status(500).json({ success: false, message: 'Failed to retrieve job details', details: error.message });
     }
 });
 

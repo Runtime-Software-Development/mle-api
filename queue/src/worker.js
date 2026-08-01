@@ -12,6 +12,7 @@ import path from 'path';
 import { processImageAssets, processImageMetadata } from './services.js';
 import { copyFile } from './utils.js';  
 import fs from 'fs';
+import { isAllowedImageMIMEType, isAllowedMIMEType, isImageProcessType, normalizeMIMEType } from './mime.js';
 
 /**
  * Asynchronously processes a job based on the file type to upload the file.
@@ -106,6 +107,47 @@ import fs from 'fs';
  * 
  */
 export const processJob = async (job, queue) => {
+    const diagnostics = {
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        events: [],
+        warnings: [],
+        errors: [],
+        paths: {},
+        metadata: {},
+    };
+
+    const addEvent = (level, message, details = null) => {
+        diagnostics.events.push({
+            at: new Date().toISOString(),
+            level,
+            message,
+            details,
+        });
+    };
+
+    const addWarning = (message) => {
+        diagnostics.warnings.push({ at: new Date().toISOString(), message });
+    };
+
+    const addError = (message) => {
+        diagnostics.errors.push({ at: new Date().toISOString(), message });
+    };
+
+    const persistDiagnostics = async (status = 'running') => {
+        try {
+            await job.update({
+                ...job.data,
+                diagnostics: {
+                    ...diagnostics,
+                    status,
+                },
+            });
+        } catch (updateError) {
+            console.warn(`[WORKER] Failed to persist diagnostics for job ${job?.id}:`, updateError?.message || updateError);
+        }
+    };
+
     try {
         // Extract job data
         const { file, file_model, owner, process_type } = job.data;
@@ -118,23 +160,68 @@ export const processJob = async (job, queue) => {
 
         // Set process type by file type
         const processType = process_type;
+        const normalizedMIMEType = normalizeMIMEType(file?.mimetype);
         let result;
+
+        diagnostics.paths = {
+            tmp: path.join(process.env.MLE_TMP_DIR || '', file?.filename_tmp || ''),
+            destination: path.join(process.env.MLE_UPLOAD_DIR || '', file?.fs_path || ''),
+            lowresRoot: process.env.MLE_LOWRES_DIR || '',
+        };
+
+        diagnostics.metadata = {
+            fileId: file?.id || null,
+            ownerId: owner?.owner_id || null,
+            ownerType: owner?.owner_type || null,
+            fileType: file?.file_type || null,
+            processType,
+            mimeType: normalizedMIMEType,
+        };
+
+        addEvent('info', 'job_received', diagnostics.metadata);
+        await persistDiagnostics('running');
 
         // DEBUG: Uncomment to block job processing (will now mark as failed)
         // throw new Error(`Blocked Job: ${job?.id} / ${processType}`);
 
         console.log(`[WORKER] Processing JOB ${job.id} / TYPE ${processType}`);
 
+        if (!isAllowedMIMEType(normalizedMIMEType)) {
+            addError(`Unsupported MIME type: ${normalizedMIMEType || 'unknown'}`);
+            diagnostics.finishedAt = new Date().toISOString();
+            await persistDiagnostics('failed');
+            throw new Error(`invalidMIMEType: unsupported MIME type '${normalizedMIMEType || 'unknown'}'`);
+        }
+
+        if (isImageProcessType(processType) && !isAllowedImageMIMEType(normalizedMIMEType)) {
+            addError(`MIME type not allowed for image processing: ${normalizedMIMEType}`);
+            diagnostics.finishedAt = new Date().toISOString();
+            await persistDiagnostics('failed');
+            throw new Error(`invalidMIMEType: MIME type '${normalizedMIMEType}' is not allowed for image processing`);
+        }
+
+        // Keep a normalized value for downstream logging/metadata writes.
+        file.mimetype = normalizedMIMEType;
+
         if (!fs.existsSync(process.env.MLE_TMP_DIR)) {
+            addError('Temporary file storage directory does not exist');
+            diagnostics.finishedAt = new Date().toISOString();
+            await persistDiagnostics('failed');
             throw new Error('Temporary file storage directory does not exist');
         }
 
         // Ensure the upload and low resolution images directory exists
         if (!fs.existsSync(process.env.MLE_UPLOAD_DIR)) {
+            addError('Upload directory does not exist');
+            diagnostics.finishedAt = new Date().toISOString();
+            await persistDiagnostics('failed');
             throw new Error('Upload directory does not exist');
         }
 
         if (!fs.existsSync(process.env.MLE_LOWRES_DIR)) {
+            addError('Low resolution images directory does not exist');
+            diagnostics.finishedAt = new Date().toISOString();
+            await persistDiagnostics('failed');
             throw new Error('Low resolutuion images directory does not exist');
         }
 
@@ -143,6 +230,7 @@ export const processJob = async (job, queue) => {
         if (!fs.existsSync(fullPath)) {
             fs.mkdirSync(fullPath, { recursive: true });
             console.log(`Created upload directory ${fullPath}: ${fs.existsSync(process.env.MLE_UPLOAD_DIR, path.dirname(file?.fs_path))}`);
+            addEvent('info', 'created_upload_directory', { path: fullPath });
         }
 
         switch (processType) {
@@ -150,6 +238,11 @@ export const processJob = async (job, queue) => {
                 result = await processImageMetadata(file, file_model, {
                     sourcePath: path.join(process.env.MLE_UPLOAD_DIR, file?.fs_path)
                 });
+                if (result?.exif?.warnings?.length) {
+                    result.exif.warnings.forEach((warning) => addWarning(warning));
+                }
+                diagnostics.metadata.exif = result?.exif || null;
+                diagnostics.metadata.persistedMetadata = result?.metadataUpdate || null;
                 console.log(`[WORKER] Metadata extraction for job ${job.id} completed.`);
                 break;
             case 'supplemental_images':
@@ -157,6 +250,7 @@ export const processJob = async (job, queue) => {
             case 'modern_images':
                 // Copy and resize image assets first so uploads finish quickly.
                 result = await processImageAssets(file, file_model);
+                diagnostics.metadata.assets = result?.versions || null;
                 if (queue) {
                     await queue.add(
                         {
@@ -171,6 +265,7 @@ export const processJob = async (job, queue) => {
                             }
                         }
                     );
+                    addEvent('info', 'queued_metadata_extract_followup', { processType: 'metadata_extract' });
                 }
                 console.log(`[WORKER] Image upload for job ${job.id} completed. Result:`, result);
                 console.log("Job data for uploadImage:", { file: file.filename, file_model: file_model.image_state, owner: owner.owner_id });
@@ -181,15 +276,23 @@ export const processJob = async (job, queue) => {
                 console.log(`[WORKER] Copying file source ${srcPath} to ${dstPath}`);
                 // Assuming copyFile is an async function that handles its own errors or throws them
                 result = await copyFile(srcPath, dstPath);
+                diagnostics.metadata.copied = true;
                 console.log(`[WORKER] File copy for job ${job.id} completed. Result:`, result);
                 break;
         }
+
+        diagnostics.finishedAt = new Date().toISOString();
+        addEvent('info', 'job_completed');
+        await persistDiagnostics('completed');
 
         // resolving (finishing) indicates success:
         // return data, which will be accessible via job.returnvalue
         return { success: true, message: 'Job completed successfully', data: result };
 
     } catch (error) {
+        addError(error?.message || String(error));
+        diagnostics.finishedAt = new Date().toISOString();
+        await persistDiagnostics('failed');
         console.error(`[WORKER] Error processing job ${job?.id}:`, error);
         // Re-throw the error. Bull will catch this, mark the job as failed,
         // and handle retries based on queue options.

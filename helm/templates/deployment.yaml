@@ -68,10 +68,20 @@ spec:
           resources:
             {{- toYaml .Values.mleAPI.resources | nindent 12 }}
           env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: TZ
               value: {{ .Values.global.timezone | default "America/Vancouver" | quote }}
             - name: LOG_LEVEL
               value: {{ .Values.global.logging.level | default "info" | quote }}
+            - name: MLE_LOG_DIR
+              {{- if .Values.global.logging.useSharedDataVolume }}
+              value: {{ printf "/mnt/data/%s/api/$(POD_NAME)" (.Values.global.logging.sharedSubdir | default (printf "%s-shared-logs" (include "mleAPI.fullname" .))) | quote }}
+              {{- else }}
+              value: {{ .Values.mleAPI.persistence.logs.mountPath | default .Values.global.logging.dir | default "/usr/src/app/logs" | quote }}
+              {{- end }}
             {{- if .Values.mleAPI.env }}
             {{- toYaml .Values.mleAPI.env | nindent 12 }}
             {{- end }}
@@ -108,9 +118,10 @@ spec:
           volumeMounts:
             - name: tmp-dir
               mountPath: /tmp
-            {{- if .Values.mleAPI.persistence.logs.enabled }}
+            {{- if and .Values.mleAPI.persistence.logs.enabled (not .Values.global.logging.useSharedDataVolume) }}
             - name: logs
               mountPath: {{ .Values.mleAPI.persistence.logs.mountPath }}
+              subPathExpr: {{ printf "%s/api/$(POD_NAME)" (.Values.global.logging.sharedSubdir | default (printf "%s-shared-logs" (include "mleAPI.fullname" .))) | quote }}
             {{- end }}
             {{- with .Values.mleAPI.volumeMounts }}
             {{- toYaml . | nindent 12 }}
@@ -118,10 +129,10 @@ spec:
       volumes:
         - name: tmp-dir
           emptyDir: {}
-        {{- if .Values.mleAPI.persistence.logs.enabled }}
+        {{- if and .Values.mleAPI.persistence.logs.enabled (not .Values.global.logging.useSharedDataVolume) }}
         - name: logs
           persistentVolumeClaim:
-            claimName: {{ include "mleAPI.fullname" . }}-logs-pvc
+            claimName: {{ .Values.mleAPI.persistence.logs.existingClaim | default (printf "%s-logs-pvc" (include "mleAPI.fullname" .)) }}
         {{- end }}
         {{- with .Values.mleAPI.volumes }}
         {{- toYaml . | nindent 8 }}
