@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-user-sync
+  namespace: mlp-explorer-test
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 1800
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: user-sync
+          image: node:20-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["node", "/work/bulk-sync-users.mjs", "--file", "/data/users.json", "--dry-run"]
+          env:
+            - name: KEYCLOAK_BASE_URL
+              value: "http://mle-backend-mle-api-keycloak-svc:8081"
+            - name: KEYCLOAK_REALM
+              value: "mle-test-realm"
+            - name: KEYCLOAK_CLIENT_ID
+              value: "user-sync-admin"
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-user-sync-secret
+                  key: client-secret
+          volumeMounts:
+            - name: sync-script
+              mountPath: /work
+              readOnly: true
+            - name: sync-data
+              mountPath: /data
+              readOnly: true
+      volumes:
+        - name: sync-script
+          configMap:
+            name: keycloak-user-sync-script
+            defaultMode: 0555
+        - name: sync-data
+          configMap:
+            name: keycloak-user-sync-data
+            defaultMode: 0444

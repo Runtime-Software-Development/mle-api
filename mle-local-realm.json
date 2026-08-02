@@ -46,6 +46,28 @@
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": true,
       "authorizationServicesEnabled": false,
+      "roles": [
+        {
+          "name": "visitor",
+          "description": "Client role for visitor users"
+        },
+        {
+          "name": "registered",
+          "description": "Client role for registered users"
+        },
+        {
+          "name": "editor",
+          "description": "Client role for editors"
+        },
+        {
+          "name": "administrator",
+          "description": "Client role for administrators"
+        },
+        {
+          "name": "super_administrator",
+          "description": "Client role for super administrators"
+        }
+      ],
       "protocolMappers": [
         {
           "name": "MLE Client Roles from Realm Roles",
@@ -75,6 +97,11 @@
       "realmRoles": [
         "super_administrator"
       ],
+      "clientRoles": {
+        "mle-kc-client": [
+          "super_administrator"
+        ]
+      },
       "credentials": [
         {
           "type": "password",
@@ -92,6 +119,11 @@
       "realmRoles": [
         "administrator"
       ],
+      "clientRoles": {
+        "mle-kc-client": [
+          "administrator"
+        ]
+      },
       "credentials": [
         {
           "type": "password",
@@ -109,6 +141,11 @@
       "realmRoles": [
         "editor"
       ],
+      "clientRoles": {
+        "mle-kc-client": [
+          "editor"
+        ]
+      },
       "credentials": [
         {
           "type": "password",
@@ -126,6 +163,11 @@
       "realmRoles": [
         "registered"
       ],
+      "clientRoles": {
+        "mle-kc-client": [
+          "registered"
+        ]
+      },
       "credentials": [
         {
           "type": "password",
@@ -143,6 +185,11 @@
       "realmRoles": [
         "visitor"
       ],
+      "clientRoles": {
+        "mle-kc-client": [
+          "visitor"
+        ]
+      },
       "credentials": [
         {
           "type": "password",

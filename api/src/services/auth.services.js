@@ -32,6 +32,21 @@ const settings = {
     bearerOnly: true
 }
 
+// Prefer client-scoped roles; fallback to realm-scoped roles.
+function getTokenRoles(decoded) {
+    const clientRoles = decoded?.resource_access?.[settings.clientId]?.roles;
+    if (Array.isArray(clientRoles) && clientRoles.length > 0) {
+        return clientRoles;
+    }
+
+    const realmRoles = decoded?.realm_access?.roles;
+    if (Array.isArray(realmRoles) && realmRoles.length > 0) {
+        return realmRoles;
+    }
+
+    return [];
+}
+
 /**
  * Compose request urls (KeyCloak endpoints)
  *
@@ -124,9 +139,7 @@ export const authenticate = async ({email:email, password:password}) => {
     // append user roles to fetched data
     // data.roles = decoded?.resource_access[settings.clientId].roles;
     // Check if decoded.resource_access is an object and has the client ID
-    data.roles = decoded?.resource_access && typeof decoded.resource_access === 'object'
-  ? decoded.resource_access[settings.clientId]?.roles
-  : ['super_administrator'];
+        data.roles = getTokenRoles(decoded);
 
     return data;
 }
@@ -187,9 +200,7 @@ export const authorize = async (req, res, allowedRoles) => {
     // get current user role and check authorization
     // console.log('Decoded KeyCloak token:', decoded);
     // const {roles=[]} = decoded.resource_access[settings.clientId];
-    const {roles=[]} = decoded?.resource_access && typeof decoded.resource_access === 'object'
-  ? decoded.resource_access[settings.clientId]
-  : {roles: ['super_administrator']};
+    const roles = getTokenRoles(decoded);
 
     // deny users with lesser admin privileges
     // i.e. check if any user roles are allowed.
@@ -314,9 +325,7 @@ export const refresh = async (req) => {
 
         // append user email, roles to fetched data
         data.email = decoded.email;
-        data.roles = decoded?.resource_access && typeof decoded.resource_access === 'object'
-  ? decoded.resource_access[settings.clientId]?.roles
-  : [ 'super_administrator' ];
+                data.roles = getTokenRoles(decoded);
     }
     return data;
 

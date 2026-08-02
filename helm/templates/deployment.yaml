@@ -45,6 +45,16 @@ spec:
             - name: http
               containerPort: {{ .Values.mleAPI.service.port }}
               protocol: TCP
+          {{- if .Values.mleAPI.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: {{ .Values.mleAPI.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.mleAPI.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.mleAPI.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.mleAPI.probes.startup.failureThreshold }}
+          {{- end }}
           {{- if .Values.mleAPI.probes.liveness.enabled }}
           livenessProbe:
             httpGet:

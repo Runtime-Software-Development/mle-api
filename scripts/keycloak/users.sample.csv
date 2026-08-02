@@ -1,0 +1,6 @@
+# username,email,firstName,lastName,enabled,emailVerified,password,passwordTemporary,realmRoles,clientRoles,attributes
+# realmRoles uses ';' delimiters
+# clientRoles and attributes must be valid JSON strings
+username,email,firstName,lastName,enabled,emailVerified,password,passwordTemporary,realmRoles,clientRoles,attributes
+jane.doe,jane.doe@example.org,Jane,Doe,true,true,ChangeMe123!,true,offline_access,"{""mle-kc-client-jLFIy6wlwatU"": [""viewer""]}","{""department"": [""Collections""], ""employeeId"": [""A1234""]}"
+admin.user,admin.user@example.org,Admin,User,true,true,,true,offline_access,"{""mle-kc-client-jLFIy6wlwatU"": [""admin""]}","{""department"": [""IT""]}"

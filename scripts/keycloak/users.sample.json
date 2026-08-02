@@ -1,0 +1,35 @@
+[
+  {
+    "username": "jane.doe",
+    "email": "jane.doe@example.org",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "enabled": true,
+    "emailVerified": true,
+    "password": "ChangeMe123!",
+    "passwordTemporary": true,
+    "attributes": {
+      "department": ["Collections"],
+      "employeeId": ["A1234"]
+    },
+    "realmRoles": ["offline_access"],
+    "clientRoles": {
+      "mle-kc-client-jLFIy6wlwatU": ["viewer"]
+    }
+  },
+  {
+    "username": "admin.user",
+    "email": "admin.user@example.org",
+    "firstName": "Admin",
+    "lastName": "User",
+    "enabled": true,
+    "emailVerified": true,
+    "attributes": {
+      "department": ["IT"]
+    },
+    "realmRoles": ["offline_access"],
+    "clientRoles": {
+      "mle-kc-client-jLFIy6wlwatU": ["admin"]
+    }
+  }
+]
