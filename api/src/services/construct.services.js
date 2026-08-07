@@ -321,10 +321,7 @@ function setData(data = null) {
         // assert attributes exist in model schema
         // NOTE: we silently ignore attributes not present in model schema
         Object.keys(inputData)
-            .filter(key => !(this.attributes && this.attributes.hasOwnProperty(key)))
-            .map(key => {
-                console.warn(`Attribute key \'${key}\' was not in model schema for \'${this.name}\'.`);
-            });
+            .filter(key => !(this.attributes && this.attributes.hasOwnProperty(key)));
 
         // set attribute values from data
         Object.keys(inputData)

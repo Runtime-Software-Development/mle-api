@@ -119,39 +119,75 @@ export const status = async (_, res, next) => {
 
 export const logs = async (_, res, next) => {
     try {
-
         const logDir = path.join(process.env.MLE_LOG_DIR || './logs');
+        const apiRequiredFiles = ['error.log', 'access.log'];
 
-        // read log files
-        fs.readdir(logDir, (err, files) => {
-            if (err) {
-                console.error(err);
-                return next(err);
-            } else {
-                const logFiles = files.filter(file => path.extname(file) === '.log');
-                const logContents = [];
-
-                // read each log file
-                logFiles.forEach(file => {
-                    const filePath = path.join(logDir, file);
-                    fs.readFile(filePath, 'utf8', (err, data) => {
-                        if (err) {
-                            return next(err);
-                        } else {
-                            const logArray = data.split('\n');
-                            logContents.push({ file, contents: logArray });
-                            if (logContents.length === logFiles.length) {
-                                res.status(200).json(
-                                    prepare({
-                                        view: 'logs',
-                                        data: logContents, // data,
-                                    }));
-                            }
-                        }
-                    });
-                });
+        const readLocalLogFile = async (fileName) => {
+            const filePath = path.join(logDir, fileName);
+            try {
+                const data = await fs.promises.readFile(filePath, 'utf8');
+                return {
+                    source: 'api',
+                    file: fileName,
+                    contents: data.split('\n')
+                };
+            } catch (error) {
+                return {
+                    source: 'api',
+                    file: fileName,
+                    contents: [],
+                    missing: true,
+                    details: error?.message || 'Log file not available'
+                };
             }
-        });
+        };
+
+        const apiLogs = await Promise.all(apiRequiredFiles.map(readLocalLogFile));
+
+        let queueLogs = [];
+        if (process.env.MLE_QUEUE_SERVER_URL) {
+            const queueLogsUrl = `${process.env.MLE_QUEUE_SERVER_URL}/queue/logs`;
+            try {
+                const response = await fetch(queueLogsUrl);
+                if (response.ok) {
+                    const payload = await response.json();
+                    queueLogs = Array.isArray(payload?.data) ? payload.data : [];
+                } else {
+                    queueLogs = [{
+                        source: 'queue',
+                        file: 'queue-log-fetch-error',
+                        contents: [],
+                        missing: true,
+                        details: `Queue logs endpoint returned ${response.status}`
+                    }];
+                }
+            } catch (queueError) {
+                queueLogs = [{
+                    source: 'queue',
+                    file: 'queue-log-fetch-error',
+                    contents: [],
+                    missing: true,
+                    details: queueError?.message || 'Queue logs endpoint unavailable'
+                }];
+            }
+        } else {
+            queueLogs = [{
+                source: 'queue',
+                file: 'queue-log-fetch-error',
+                contents: [],
+                missing: true,
+                details: 'MLE_QUEUE_SERVER_URL is not configured'
+            }];
+        }
+
+        const logContents = [...apiLogs, ...queueLogs];
+
+        return res.status(200).json(
+            prepare({
+                view: 'logs',
+                data: logContents,
+            })
+        );
     } catch (err) {
         return next(err);
     }

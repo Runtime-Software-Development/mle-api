@@ -11,6 +11,8 @@ import express from 'express';
 import Bull from 'bull'; // Note: Bull is an older library, TODO: Switch to BullMQ
 import { processJob } from './src/worker.js';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import { ensureAppDirectories } from './src/utils.js'; 
 import { configureQueueLogging } from './src/logging.js';
 
@@ -29,6 +31,11 @@ const appPort = parseInt(process.env.MLE_QUEUE_PORT || '3002', 10);
 const appHost = process.env.MLE_QUEUE_HOST || '0.0.0.0';
 const keepCompletedJobs = String(process.env.MLE_QUEUE_KEEP_COMPLETED_JOBS || 'true').toLowerCase() === 'true';
 const statusMaxJobs = process.env.MLE_QUEUE_STATUS_MAX_JOBS ? parseInt(process.env.MLE_QUEUE_STATUS_MAX_JOBS, 10) : 1000;
+const queueLogDir = process.env.MLE_LOG_DIR || '/usr/src/app/logs';
+const queueAppLogFile = process.env.MLE_QUEUE_LOG_FILE || 'queue.log';
+const queueErrorLogFile = process.env.MLE_QUEUE_ERROR_LOG_FILE || 'queue-error.log';
+const queueAccessLogFile = process.env.MLE_QUEUE_ACCESS_LOG_FILE || 'queue-access.log';
+const queueFileLoggingEnabled = String(process.env.MLE_LOG_TO_FILE || 'true').toLowerCase() === 'true';
 
 // Message to console to start the server
 console.log('* Mountain Legacy Project');
@@ -39,6 +46,27 @@ console.log('Starting MLE Queue API server...');
 
 // Ensure all specified application directories exist
 ensureAppDirectories();
+
+if (queueFileLoggingEnabled) {
+    fs.mkdirSync(queueLogDir, { recursive: true });
+}
+
+// Queue API access log lines are emitted to queue.log (via console logger)
+// and optionally to queue-access.log for request-focused troubleshooting.
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const durationMs = Date.now() - start;
+        const accessLine = `[ACCESS] ${req.method} ${req.originalUrl} ${res.statusCode} ${durationMs}ms ip=${req.ip || '-'} ua="${req.get('user-agent') || '-'}"`;
+        console.info(accessLine);
+
+        if (queueFileLoggingEnabled) {
+            const filePath = path.join(queueLogDir, queueAccessLogFile);
+            fs.appendFile(filePath, `${new Date().toISOString()} ${accessLine}\n`, () => {});
+        }
+    });
+    next();
+});
 
 // Initialize the Bull queue
 // Ensure robust Redis connection settings for Bull
@@ -349,6 +377,46 @@ app.get('/queue/status', async (_, res) => {
     } catch (error) {
         console.error(' - [ERROR] Failed to get detailed queue status:', error);
         res.status(500).json({ success: false, message: 'Failed to retrieve detailed queue status', details: error.message });
+    }
+});
+
+app.get('/queue/logs', async (_, res) => {
+    const readLogFile = async (fileName) => {
+        const filePath = path.join(queueLogDir, fileName);
+        try {
+            const data = await fs.promises.readFile(filePath, 'utf8');
+            return {
+                source: 'queue',
+                file: fileName,
+                contents: data.split('\n')
+            };
+        } catch (error) {
+            return {
+                source: 'queue',
+                file: fileName,
+                contents: [],
+                missing: true,
+                details: error?.message || 'Log file not available'
+            };
+        }
+    };
+
+    try {
+        const files = [queueErrorLogFile, queueAccessLogFile, queueAppLogFile];
+        const uniqueFiles = [...new Set(files.filter(Boolean))];
+        const logs = await Promise.all(uniqueFiles.map(readLogFile));
+
+        return res.status(200).json({
+            success: true,
+            data: logs
+        });
+    } catch (error) {
+        console.error(' - [ERROR] Failed to read queue log files:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve queue logs',
+            details: error.message
+        });
     }
 });
 
