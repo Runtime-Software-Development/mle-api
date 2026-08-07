@@ -164,6 +164,8 @@ export default async () => {
         }
     };
 
+    app.set('errorLogger', errorLogger);
+
     console.log('MLE API URL: %s', process.env.MLE_API_BASEURL);
 
     // Test the database connection

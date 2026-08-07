@@ -218,7 +218,18 @@ export const onFile = (name, file, info, files, abort) => {
             || (IMAGE_UPLOAD_TYPES.has(fileType)
                 && !allowedImageMIME(normalizedMIMEType))
         ) {
-            abort(new Error('invalidMIMEType'));
+            const rejectedMimeError = new Error('invalidMIMEType');
+            rejectedMimeError.details = {
+                fileName: filename,
+                fieldName: name,
+                fileType,
+                encoding,
+                declaredMimeType: mimeType,
+                normalizedMimeType: normalizedMIMEType,
+                allowedImageUploadType: IMAGE_UPLOAD_TYPES.has(fileType),
+            };
+            console.error(`[Upload] Rejected file '${filename}' (${name}) with MIME type '${normalizedMIMEType}' for upload type '${fileType}'.`);
+            abort(rejectedMimeError);
             return;
         }
 

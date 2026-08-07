@@ -226,9 +226,18 @@ function decodeError(err = null) {
 export function globalHandler(err, req, res, next) {
     const e = decodeError(err);
 
-    // report to logger
-    console.error(`ERROR (${err.message})\t${e.msg}\t${e.status}\t${e.hint}`)
-    console.error(`Details:\n\n${err}\n\n`)
+    const errorLogger = req?.app?.get?.('errorLogger');
+    const errorDetails = err?.details || {
+        message: err?.message,
+        stack: err?.stack,
+    };
+
+    if (errorLogger?.error) {
+        errorLogger.error(`ERROR (${err.message})\t${e.msg}\t${e.status}\t${e.hint}`, errorDetails);
+    } else {
+        console.error(`ERROR (${err.message})\t${e.msg}\t${e.status}\t${e.hint}`);
+        console.error(`Details:\n\n${err}\n\n`);
+    }
 
     // send response
     return res.status(e.status).json(
