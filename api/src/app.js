@@ -37,6 +37,13 @@ import { ensureAppDirectories } from './lib/file.utils.js';
 import path from 'path';
 import dotenv from 'dotenv';
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Recreate __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dotenv.config();
 
 /**
