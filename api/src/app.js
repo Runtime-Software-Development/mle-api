@@ -36,8 +36,6 @@ import { startQueueHealthMonitor } from './services/other.services.js';
 import { ensureAppDirectories } from './lib/file.utils.js';
 import path from 'path';
 import dotenv from 'dotenv';
-
-import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Recreate __dirname for ES modules
