@@ -12,7 +12,7 @@ import path from 'path';
 import { processImageAssets, processImageMetadata } from './services.js';
 import { copyFile } from './utils.js';  
 import fs from 'fs';
-import { isAllowedImageMIMEType, isAllowedMIMEType, isImageProcessType, normalizeMIMEType } from './mime.js';
+import { normalizeMIMEType } from './mime.js';
 
 /**
  * Asynchronously processes a job based on the file type to upload the file.
@@ -185,20 +185,6 @@ export const processJob = async (job, queue) => {
         // throw new Error(`Blocked Job: ${job?.id} / ${processType}`);
 
         console.log(`[WORKER] Processing JOB ${job.id} / TYPE ${processType}`);
-
-        if (!isAllowedMIMEType(normalizedMIMEType)) {
-            addError(`Unsupported MIME type: ${normalizedMIMEType || 'unknown'}`);
-            diagnostics.finishedAt = new Date().toISOString();
-            await persistDiagnostics('failed');
-            throw new Error(`invalidMIMEType: unsupported MIME type '${normalizedMIMEType || 'unknown'}'`);
-        }
-
-        if (isImageProcessType(processType) && !isAllowedImageMIMEType(normalizedMIMEType)) {
-            addError(`MIME type not allowed for image processing: ${normalizedMIMEType}`);
-            diagnostics.finishedAt = new Date().toISOString();
-            await persistDiagnostics('failed');
-            throw new Error(`invalidMIMEType: MIME type '${normalizedMIMEType}' is not allowed for image processing`);
-        }
 
         // Keep a normalized value for downstream logging/metadata writes.
         file.mimetype = normalizedMIMEType;

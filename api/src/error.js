@@ -11,7 +11,6 @@
  */
 
 import { prepare } from './lib/api.utils.js';
-import {imageMIMETypes, supplementalMIMETypes} from './lib/file.utils.js';
 
 'use strict';
 
@@ -48,9 +47,13 @@ export const errors = {
     },
     invalidMIMEType: {
         hint: 'Invalid MIME for this operation.',
-        msg: `Operation does not support file format. 
-            Allowed image types: ${Object.keys(imageMIMETypes).map(key => `${key} (${imageMIMETypes[key]})`).join(', ')} 
-            Extended supplemental types: ${Object.keys(supplementalMIMETypes).map(key => `${key} (${supplementalMIMETypes[key]})`).join(', ')}`,
+        msg: `Operation does not support this file format. Supplemental files must use one of the supported document MIME types.`,
+        status: 422,
+        type: 'error'
+    },
+    unsupportedImageFormat: {
+        hint: 'The image decoder cannot process this file format.',
+        msg: 'This image format is not supported. Please convert the file to a supported image format and try again.',
         status: 422,
         type: 'error'
     },

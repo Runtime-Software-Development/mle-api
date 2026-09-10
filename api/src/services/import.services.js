@@ -31,7 +31,8 @@
 'use strict';
 
 import busboy from 'busboy';
-import { allowedImageMIME, allowedMIME, normalizeMIMEType } from "../lib/file.utils.js";
+import sharp from 'sharp';
+import { allowedMIME, normalizeMIMEType } from "../lib/file.utils.js";
 import { genUUID } from '../lib/data.utils.js';
 import fs from 'fs';
 import path from 'path';
@@ -177,7 +178,29 @@ function promisifyBusboy(req, modelType, ownerData, constructors) {
 // Modify your `receive` function
 export const receive = async (req, modelType, owner) => {
     const constructors = await getConstructors();
-    return promisifyBusboy(req, modelType, owner, constructors);
+    const result = await promisifyBusboy(req, modelType, owner, constructors);
+
+    for (const fileData of result.files) {
+        if (!IMAGE_UPLOAD_TYPES.has(fileData.file_type)) continue;
+
+        try {
+            await sharp(path.join(process.env.MLE_TMP_DIR, fileData.file.filename_tmp)).metadata();
+        } catch (error) {
+            await fs.promises.unlink(
+                path.join(process.env.MLE_TMP_DIR, fileData.file.filename_tmp)
+            ).catch(() => {});
+            const unsupportedFormatError = new Error('unsupportedImageFormat');
+            unsupportedFormatError.details = {
+                fileName: fileData.file.filename,
+                fieldName: fileData.file_type,
+                declaredMimeType: fileData.file.mimetype,
+                decoderError: error?.message,
+            };
+            throw unsupportedFormatError;
+        }
+    }
+
+    return result;
 };
 
 /**
@@ -212,12 +235,9 @@ export const onFile = (name, file, info, files, abort) => {
             index = parseInt(match[2], 10);
         }
 
-        // Reject unacceptable MIME types for given file type
-        if (
-            !allowedMIME(normalizedMIMEType)
-            || (IMAGE_UPLOAD_TYPES.has(fileType)
-                && !allowedImageMIME(normalizedMIMEType))
-        ) {
+        // Supplemental files retain an explicit MIME policy. Image support is
+        // determined by the decoder after the upload stream completes.
+        if (!IMAGE_UPLOAD_TYPES.has(fileType) && !allowedMIME(normalizedMIMEType)) {
             const rejectedMimeError = new Error('invalidMIMEType');
             rejectedMimeError.details = {
                 fileName: filename,
