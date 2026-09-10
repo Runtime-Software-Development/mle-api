@@ -362,38 +362,48 @@ export const getMetadataOptions = async function(client) {
  * @return {*}
  */
 
+const imageStatePriority = {
+    master: 0,
+    interim: 1,
+    misc: 2,
+    raw: 3,
+    gridded: 4,
+};
+
+const normalizeImageState = (imageState) => String(imageState || '').trim().toLowerCase();
+
+const getImageTimestamp = (image) => {
+    const timestamp = image?.file?.updated_at
+        || image?.file?.created_at
+        || image?.metadata?.updated_at
+        || image?.metadata?.created_at;
+    const value = timestamp instanceof Date ? timestamp.getTime() : Date.parse(timestamp || '');
+    return Number.isNaN(value) ? 0 : value;
+};
+
+export const selectRepresentativeImage = (images = []) => {
+    return [...images]
+        .filter(image => Object.hasOwn(imageStatePriority, normalizeImageState(image?.metadata?.image_state)))
+        .sort((left, right) => {
+            const leftState = normalizeImageState(left.metadata.image_state);
+            const rightState = normalizeImageState(right.metadata.image_state);
+            const stateDifference = imageStatePriority[leftState] - imageStatePriority[rightState];
+            if (stateDifference !== 0) return stateDifference;
+
+            const timestampDifference = getImageTimestamp(right) - getImageTimestamp(left);
+            if (timestampDifference !== 0) return timestampDifference;
+
+            return (right?.file?.id || 0) - (left?.file?.id || 0);
+        })[0];
+};
+
 export const getCaptureImage = (files, owner) => {
     const { historic_images=null, modern_images=null } = files || {};
     const captureImages = historic_images || modern_images || [];
     const { id='', type='' } = owner || {};
     const fileType = type === 'historic_captures' ? 'historic_images' : 'modern_images';
-    const imageStatePriority = {
-        master: 0,
-        interim: 1,
-        misc: 2,
-        raw: 3,
-        gridded: 4,
-    };
-    const getTimestamp = (file) => {
-        const timestamp = file?.file?.updated_at || file?.file?.created_at;
-        const value = timestamp ? Date.parse(timestamp) : NaN;
-        return Number.isNaN(value) ? 0 : value;
-    };
 
-    const representativeImage = [...captureImages]
-        .filter(file => Object.hasOwn(imageStatePriority, file?.metadata?.image_state))
-        .sort((left, right) => {
-            const leftState = imageStatePriority[left.metadata.image_state];
-            const rightState = imageStatePriority[right.metadata.image_state];
-            if (leftState !== rightState) return leftState - rightState;
-
-            const timestampDifference = getTimestamp(right) - getTimestamp(left);
-            if (timestampDifference !== 0) return timestampDifference;
-
-            return (right?.file?.id || 0) - (left?.file?.id || 0);
-        })[0];
-
-    return representativeImage
+    return selectRepresentativeImage(captureImages)
         || {label: 'No Images', file: {file_type: fileType, owner_id: id, owner_type: type }};
 }
 

@@ -52,6 +52,7 @@ import * as nserve from '../services/nodes.services.js';
 import * as fserve from '../services/files.services.js';
 import * as importer from '../services/import.services.js';
 import * as metaserve from '../services/metadata.services.js';
+import { selectRepresentativeImage } from '../services/metadata.services.js';
 import { humanize, sanitize } from '../lib/data.utils.js';
 import { isRelatable } from '../services/schema.services.js';
 import { deleteComparisons, getComparisonsMetadata, updateComparisons } from "../services/comparisons.services.js";
@@ -162,24 +163,23 @@ export default function ModelController(nodeType) {
                 }
                 itemData.dependents = enrichedDependents;
 
-                // Modern visits do not have direct modern_images; promote the first
-                // capture image from nested modern_captures as the representative image.
+                // Modern visits do not have direct modern_images; rank images from
+                // nested modern_captures as the representative image.
                 if (
                     itemData?.type === 'modern_visits'
                     && (!itemData?.refImage || itemData?.refImage?.label === 'No Images')
                 ) {
-                    let fallbackRefImage = null;
+                    const childRefImages = [];
                     for (const dependent of itemData.dependents) {
                         const childDependents = dependent?.dependents || [];
-                        const captureWithImage = childDependents.find(child => {
+                        childDependents.forEach(child => {
                             const refImage = child?.refImage || {};
-                            return refImage?.label && refImage.label !== 'No Images';
+                            if (refImage?.label && refImage.label !== 'No Images') {
+                                childRefImages.push(refImage);
+                            }
                         });
-                        if (captureWithImage?.refImage) {
-                            fallbackRefImage = captureWithImage.refImage;
-                            break;
-                        }
                     }
+                    const fallbackRefImage = selectRepresentativeImage(childRefImages);
                     if (fallbackRefImage) {
                         itemData.refImage = fallbackRefImage;
                     }
