@@ -249,8 +249,9 @@ export const selectByOwner = async (id, client) => {
         });
     }
 
-    // group files by type
-    return files.reduce((o, f) => {
+    // Group files by type, then place the representative capture image first
+    // so direct capture views and refImage use the same default image.
+    const groupedFiles = files.reduce((o, f) => {
         const { file = {} } = f || {};
         const { file_type = 'files' } = file || {};
 
@@ -263,6 +264,18 @@ export const selectByOwner = async (id, client) => {
         o[file_type].push(f);
         return o;
     }, {});
+
+    for (const fileType of captureImageTypes) {
+        const representativeImage = metaserve.selectRepresentativeImage(groupedFiles[fileType] || []);
+        if (!representativeImage) continue;
+
+        groupedFiles[fileType] = [
+            representativeImage,
+            ...groupedFiles[fileType].filter(file => file !== representativeImage),
+        ];
+    }
+
+    return groupedFiles;
 };
 
 /**
