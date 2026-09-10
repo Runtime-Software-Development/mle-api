@@ -355,7 +355,7 @@ export const getMetadataOptions = async function(client) {
  * Get representative capture image file data.
  * - filters capture files by image state
  * - rank representative images as masters > interim > misc > raw > gridded
- * - for multiple master images, select the most recent
+ * - for multiple images with the same state, select the most recent
  *
  * @param files
  * @param owner
@@ -367,11 +367,33 @@ export const getCaptureImage = (files, owner) => {
     const captureImages = historic_images || modern_images || [];
     const { id='', type='' } = owner || {};
     const fileType = type === 'historic_captures' ? 'historic_images' : 'modern_images';
-    return captureImages.find(file => file.metadata.image_state === 'master')
-        || captureImages.find(file => file.metadata.image_state === 'interim')
-        || captureImages.find(file => file.metadata.image_state === 'misc')
-        || captureImages.find(file => file.metadata.image_state === 'raw')
-        || captureImages.find(file => file.metadata.image_state === 'gridded')
+    const imageStatePriority = {
+        master: 0,
+        interim: 1,
+        misc: 2,
+        raw: 3,
+        gridded: 4,
+    };
+    const getTimestamp = (file) => {
+        const timestamp = file?.file?.updated_at || file?.file?.created_at;
+        const value = timestamp ? Date.parse(timestamp) : NaN;
+        return Number.isNaN(value) ? 0 : value;
+    };
+
+    const representativeImage = [...captureImages]
+        .filter(file => Object.hasOwn(imageStatePriority, file?.metadata?.image_state))
+        .sort((left, right) => {
+            const leftState = imageStatePriority[left.metadata.image_state];
+            const rightState = imageStatePriority[right.metadata.image_state];
+            if (leftState !== rightState) return leftState - rightState;
+
+            const timestampDifference = getTimestamp(right) - getTimestamp(left);
+            if (timestampDifference !== 0) return timestampDifference;
+
+            return (right?.file?.id || 0) - (left?.file?.id || 0);
+        })[0];
+
+    return representativeImage
         || {label: 'No Images', file: {file_type: fileType, owner_id: id, owner_type: type }};
 }
 
