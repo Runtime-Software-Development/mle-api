@@ -18,7 +18,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // DEBUG
-// console.log('MLE API Environment Variables: %s', JSON.stringify(process.env, null, 2));
+console.log('MLE API Environment Variables: %s', JSON.stringify(process.env, null, 2));
 
 /**
  * Create client pool to allow for reusable pool of
