@@ -40,7 +40,7 @@ import router from './routes/index.routes.js';
 import { testDatabaseConnection } from './services/db.services.js';
 import { startQueueHealthMonitor } from './services/other.services.js';
 import { ensureAppDirectories } from './lib/file.utils.js';
-import { configureConsoleLogging, shouldEnableHttpAccessLogs } from './lib/logging.utils.js';
+import { configureConsoleLogging, pruneStaleLogDirs, shouldEnableHttpAccessLogs } from './lib/logging.utils.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -94,6 +94,9 @@ export default async () => {
 
     if (fileLoggingEnabled) {
         fs.existsSync(logDirectory) || fs.mkdirSync(logDirectory, { recursive: true });
+        pruneStaleLogDirs(logDirectory, process.env.MLE_LOG_RETENTION_DAYS).catch((err) => {
+            console.warn('[Logging] Stale log directory pruning failed:', err.message);
+        });
 
         // Create access and error log streams
         accessLogStream = createStream(logFileName, {
@@ -247,9 +250,11 @@ export default async () => {
     const consoleLogFormat = process.env.MLE_LOG_FORMAT || 'dev';
     const accessLogFormat = process.env.MLE_LOG_FORMAT || 'combined';
     const httpAccessLogsEnabled = shouldEnableHttpAccessLogs(activeLogLevel);
+    // Skip successful k8s probe requests; failures are still logged.
+    const skipHealthChecks = (req, res) => req.path === '/healthz' && res.statusCode < 400;
 
     if (httpAccessLogsEnabled) {
-        app.use(morgan(consoleLogFormat === 'combined' ? 'combined-local' : consoleLogFormat));
+        app.use(morgan(consoleLogFormat === 'combined' ? 'combined-local' : consoleLogFormat, { skip: skipHealthChecks }));
     }
     const morganAccessStream = {
         write: (line) => {
@@ -269,7 +274,7 @@ export default async () => {
     };
 
     if (httpAccessLogsEnabled) {
-        app.use(morgan(accessLogFormat === 'combined' ? 'combined-local' : accessLogFormat, { stream: morganAccessStream }));
+        app.use(morgan(accessLogFormat === 'combined' ? 'combined-local' : accessLogFormat, { stream: morganAccessStream, skip: skipHealthChecks }));
     } else {
         console.warn('[Logging] HTTP access logging disabled for current LOG_LEVEL.');
     }

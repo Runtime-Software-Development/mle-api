@@ -58,6 +58,11 @@ spec:
               {{- else }}
               value: {{ .Values.queue.persistence.logs.mountPath | default .Values.global.logging.dir | default "/usr/src/app/logs" | quote }}
               {{- end }}
+            {{- if and .Values.global.logging.useSharedDataVolume .Values.global.logging.retentionDays }}
+            # Each pod writes to its own directory on the shared volume; prune directories of long-gone pods.
+            - name: MLE_LOG_RETENTION_DAYS
+              value: {{ .Values.global.logging.retentionDays | quote }}
+            {{- end }}
             - name: MLE_QUEUE_LOG_FILE
               value: "queue.log"
             - name: MLE_QUEUE_ERROR_LOG_FILE

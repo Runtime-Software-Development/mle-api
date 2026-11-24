@@ -7,6 +7,8 @@ global:
     dir: "/usr/src/app/logs"
     toFile: true
     sharedSubdir: ""
+    # Days without writes before another pod's log directory is deleted (shared volume only; 0 disables).
+    retentionDays: 14
     useSharedDataVolume: false
   serviceAccount:
     # Leave empty to skip binding a service account to pods

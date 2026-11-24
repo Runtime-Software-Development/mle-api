@@ -9,13 +9,30 @@
 
 import { imageSizes } from './services.js';
 import { ExifTool } from 'exiftool-vendored';
-import * as exifr from 'exifr';
+import exifr from 'exifr';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import stream from 'stream';
 import util from 'util';
 import { getCameraMetadata } from './services.js';
+
+// One shared ExifTool instance (it manages its own process pool). Spawning and ending
+// a Perl process per job was slow and its shutdown routinely timed out.
+let sharedExifTool = null;
+export const getExifTool = () => {
+    if (!sharedExifTool) {
+        sharedExifTool = new ExifTool({ taskTimeoutMillis: 15000 });
+    }
+    return sharedExifTool;
+};
+
+export const shutdownExifTool = async () => {
+    if (!sharedExifTool) return;
+    const instance = sharedExifTool;
+    sharedExifTool = null;
+    await instance.end();
+};
 
 /**
  * Ensures a directory exists, creating it if it doesn't.
@@ -222,10 +239,8 @@ export const extractImageInfo = async (file, file_model, options = {}) => {
         raw: null,
     };
 
-    const exiftool = new ExifTool({ taskTimeoutMillis: 5000 });
     try {
-        // Start the ExifTool process
-        const exifTags = await withTimeout(exiftool.read(src), 7000, 'EXIF read');
+        const exifTags = await withTimeout(getExifTool().read(src), 20000, 'EXIF read');
 
         // Debug
         console.log(`[INFO] EXIF metadata for file ${file?.filename}:`, exifTags);
@@ -258,12 +273,6 @@ export const extractImageInfo = async (file, file_model, options = {}) => {
             console.warn('[WARN] EXIF fallback parser failed:', fallbackError.message);
             exifDiagnostics.warnings.push(`exifr_failed: ${fallbackError.message}`);
         }
-    }
-    finally {
-        await withTimeout(exiftool.end(), 2000, 'EXIF shutdown').catch((error) => {
-            console.warn('[WARN] EXIF process shutdown timed out:', error.message);
-            exifDiagnostics.warnings.push(`exif_shutdown_timeout: ${error.message}`);
-        });
     }
 
     return exifDiagnostics;

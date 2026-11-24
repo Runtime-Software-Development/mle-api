@@ -56,11 +56,19 @@ export const getShowcaseCaptures = async (client) => {
  * @return {Promise} result
  */
 
-const HEALTH_CHECK_INTERVAL_MS = 30000; // Check every 15 seconds
-let queueApiStatus = 'unknown'; // Initial status
+const HEALTH_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
+let queueApiStatus = 'unknown'; // Last observed status
+
+// Only log when the status changes, so a healthy queue doesn't flood the logs.
+function recordQueueApiStatus(status, logFn, message) {
+    if (status !== queueApiStatus) {
+        logFn(message);
+        queueApiStatus = status;
+    }
+    return status;
+}
 
 export async function checkQueueApiHealth() {
-    console.log(`[Health Check] Pinging mle-queue API at ${process.env.MLE_QUEUE_SERVER_URL}/health...`);
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
@@ -70,21 +78,18 @@ export async function checkQueueApiHealth() {
         clearTimeout(timeoutId); // Clear the timeout if the request completes in time
 
         if (response.ok) { // response.ok is true for 2xx status codes
-            console.log(`[Health Check] mle-queue API is HEALTHY (Status: ${response.status})`);
-            return 'healthy';
+            return recordQueueApiStatus('healthy', console.log,
+                `[Health Check] mle-queue API is HEALTHY (Status: ${response.status})`);
         } else {
             // For non-2xx responses, fetch doesn't throw, so we handle it here
             const errorText = await response.text(); // Or .json() if expecting JSON error
-            console.warn(`[Health Check] mle-queue API returned non-200 status: ${response.status}. Response: ${errorText}`);
-            return 'unhealthy';
+            return recordQueueApiStatus('unhealthy', console.warn,
+                `[Health Check] mle-queue API returned non-200 status: ${response.status}. Response: ${errorText}`);
         }
     } catch (error) {
-        if (error.name === 'AbortError') {
-            console.error(`[Health Check] Timeout connecting to mle-queue API: ${error.message}`);
-        } else {
-            console.error(`[Health Check] Network error connecting to mle-queue API: ${error.message}`);
-        }
-        return 'unreachable';
+        const reason = error.name === 'AbortError' ? 'Timeout' : 'Network error';
+        return recordQueueApiStatus('unreachable', console.error,
+            `[Health Check] ${reason} connecting to mle-queue API at ${process.env.MLE_QUEUE_SERVER_URL}/health: ${error.message}`);
     }
 }
 

@@ -92,6 +92,11 @@ spec:
               {{- else }}
               value: {{ .Values.mleAPI.persistence.logs.mountPath | default .Values.global.logging.dir | default "/usr/src/app/logs" | quote }}
               {{- end }}
+            {{- if and .Values.global.logging.useSharedDataVolume .Values.global.logging.retentionDays }}
+            # Each pod writes to its own directory on the shared volume; prune directories of long-gone pods.
+            - name: MLE_LOG_RETENTION_DAYS
+              value: {{ .Values.global.logging.retentionDays | quote }}
+            {{- end }}
             {{- if .Values.mleAPI.env }}
             {{- toYaml .Values.mleAPI.env | nindent 12 }}
             {{- end }}

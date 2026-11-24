@@ -13,8 +13,8 @@ import { processJob } from './src/worker.js';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { ensureAppDirectories } from './src/utils.js'; 
-import { configureQueueLogging } from './src/logging.js';
+import { ensureAppDirectories, shutdownExifTool } from './src/utils.js';
+import { configureQueueLogging, createRotatingLogStream, pruneStaleLogDirs } from './src/logging.js';
 
 dotenv.config();
 configureQueueLogging();
@@ -50,8 +50,13 @@ console.log('Starting MLE Queue API server...');
 // Ensure all specified application directories exist
 ensureAppDirectories();
 
+let accessLogStream = null;
 if (queueFileLoggingEnabled) {
     fs.mkdirSync(queueLogDir, { recursive: true });
+    accessLogStream = createRotatingLogStream(queueLogDir, queueAccessLogFile, (msg) => process.stderr.write(msg));
+    pruneStaleLogDirs(queueLogDir, process.env.MLE_LOG_RETENTION_DAYS).catch((err) => {
+        console.warn('[Logging] Stale log directory pruning failed:', err.message);
+    });
 }
 
 // Queue API access log lines are emitted to queue.log (via console logger)
@@ -59,14 +64,13 @@ if (queueFileLoggingEnabled) {
 app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
+        // Skip successful health checks (k8s probes + API pinger); they otherwise dominate the logs.
+        if (req.path === '/health' && res.statusCode < 400) return;
         const durationMs = Date.now() - start;
         const accessLine = `[ACCESS] ${req.method} ${req.originalUrl} ${res.statusCode} ${durationMs}ms ip=${req.ip || '-'} ua="${req.get('user-agent') || '-'}"`;
         console.info(accessLine);
 
-        if (queueFileLoggingEnabled) {
-            const filePath = path.join(queueLogDir, queueAccessLogFile);
-            fs.appendFile(filePath, `${new Date().toISOString()} ${accessLine}\n`, () => {});
-        }
+        accessLogStream?.write(`${new Date().toISOString()} ${accessLine}\n`);
     });
     next();
 });
@@ -476,6 +480,27 @@ app.listen(appPort, appHost, () => {
     console.log(`Queue API listening on ${appHost}:${appPort}`);
     console.log(' - Garbage Collection is', !!global.gc ? 'available.' : 'not available.');
 });
+
+// Graceful shutdown: let in-flight jobs finish, then stop the shared ExifTool process.
+let shuttingDown = false;
+const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.info(`[INFO] Received ${signal}; shutting down queue worker.`);
+    try {
+        await queue.close();
+    } catch (error) {
+        console.warn('[WARN] Error closing Bull queue:', error.message);
+    }
+    try {
+        await shutdownExifTool();
+    } catch (error) {
+        console.warn('[WARN] Error stopping ExifTool:', error.message);
+    }
+    process.exit(0);
+};
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 // --- Bull Job Processing ---
 // Process jobs from the queue
