@@ -31,6 +31,9 @@ const appPort = parseInt(process.env.MLE_QUEUE_PORT || '3002', 10);
 const appHost = process.env.MLE_QUEUE_HOST || '0.0.0.0';
 const keepCompletedJobs = String(process.env.MLE_QUEUE_KEEP_COMPLETED_JOBS || 'true').toLowerCase() === 'true';
 const statusMaxJobs = process.env.MLE_QUEUE_STATUS_MAX_JOBS ? parseInt(process.env.MLE_QUEUE_STATUS_MAX_JOBS, 10) : 1000;
+// Cap retained finished jobs so Redis memory stays bounded (unbounded retention caused Redis OOMKills).
+const keepCompletedCount = process.env.MLE_QUEUE_KEEP_COMPLETED_COUNT ? parseInt(process.env.MLE_QUEUE_KEEP_COMPLETED_COUNT, 10) : statusMaxJobs;
+const keepFailedCount = process.env.MLE_QUEUE_KEEP_FAILED_COUNT ? parseInt(process.env.MLE_QUEUE_KEEP_FAILED_COUNT, 10) : 1000;
 const queueLogDir = process.env.MLE_LOG_DIR || '/usr/src/app/logs';
 const queueAppLogFile = process.env.MLE_QUEUE_LOG_FILE || 'queue.log';
 const queueErrorLogFile = process.env.MLE_QUEUE_ERROR_LOG_FILE || 'queue-error.log';
@@ -80,6 +83,10 @@ const queue = new Bull(queueName, {
         enableOfflineQueue: true, // Queue commands when offline, process when reconnected
         connectTimeout: 20000, // 20 seconds to establish connection
     },
+    defaultJobOptions: {
+        removeOnComplete: keepCompletedJobs ? keepCompletedCount : true,
+        removeOnFail: keepFailedCount,
+    },
     limiter: {
         max: concurrentJobs,
         duration: 1000, // Process at most 'max' jobs per 'duration' in milliseconds
@@ -101,9 +108,6 @@ queue.on('active', (job) => {
 
 queue.on('completed', (job) => {
     console.log(` - [COMPLETED] JOB ${job.id}`);
-    if (!keepCompletedJobs) {
-        job.remove().catch(err => console.error(` - [ERROR] Failed to remove job ${job.id}:`, err));
-    }
 });
 
 queue.on('failed', (job, err) => {

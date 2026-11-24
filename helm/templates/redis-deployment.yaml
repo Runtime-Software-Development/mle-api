@@ -10,6 +10,10 @@ spec:
   replicas: {{ .Values.redis.replicaCount }}
   {{- end }}
   revisionHistoryLimit: 1
+  # ReadWriteOnce PVC: the old pod must release the volume before the new one can attach.
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   selector:
     matchLabels:
       {{- include "redis.selectorLabels" . | nindent 6 }}
